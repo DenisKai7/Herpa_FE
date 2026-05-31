@@ -13,12 +13,21 @@ interface DropdownItem {
 
 interface DropdownProps {
   trigger: React.ReactNode;
-  items: DropdownItem[];
+  items?: DropdownItem[];
+  children?: React.ReactNode;
   align?: 'left' | 'right';
   className?: string;
+  menuClassName?: string;
 }
 
-export function Dropdown({ trigger, items, align = 'right', className }: DropdownProps) {
+export function Dropdown({
+  trigger,
+  items,
+  children,
+  align = 'right',
+  className,
+  menuClassName,
+}: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +40,8 @@ export function Dropdown({ trigger, items, align = 'right', className }: Dropdow
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const close = () => setIsOpen(false);
 
   return (
     <div ref={dropdownRef} className={cn('relative inline-block', className)}>
@@ -45,11 +56,20 @@ export function Dropdown({ trigger, items, align = 'right', className }: Dropdow
             exit={{ opacity: 0, y: -5, scale: 0.95 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
             className={cn(
-              'absolute z-50 mt-1 min-w-[180px] rounded-xl bg-white border border-gray-200 shadow-lg py-1',
-              align === 'right' ? 'right-0' : 'left-0'
+              'absolute z-50 mt-2 min-w-[220px] rounded-2xl bg-white border border-gray-100 shadow-lg py-1.5',
+              align === 'right' ? 'right-0' : 'left-0',
+              menuClassName
             )}
           >
-            {items.map((item, i) => (
+            {/* Render children (custom content) if provided */}
+            {children
+              ? typeof children === 'function'
+                ? (children as (close: () => void) => React.ReactNode)(close)
+                : children
+              : null}
+
+            {/* Render items list if provided */}
+            {items?.map((item, i) => (
               <button
                 key={i}
                 onClick={() => {
@@ -57,7 +77,7 @@ export function Dropdown({ trigger, items, align = 'right', className }: Dropdow
                   setIsOpen(false);
                 }}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors cursor-pointer',
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer',
                   item.danger
                     ? 'text-red-600 hover:bg-red-50'
                     : 'text-gray-700 hover:bg-gray-50'
