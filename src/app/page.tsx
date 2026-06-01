@@ -15,7 +15,7 @@ import type { AiMode } from '@/types';
 export default function HomePage() {
   const router = useRouter();
   const { user, isInitialized, initialize } = useAuthStore();
-  const { activeSessionId, messages, fetchSessions } = useChatStore();
+  const { activeSessionId, messages, isSending, fetchSessions } = useChatStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiMode, setAiMode] = useState<AiMode>('umum');
 
@@ -52,7 +52,10 @@ export default function HomePage() {
 
   if (!user) return null;
 
-  const hasMessages = activeSessionId && messages.length > 0;
+  // Show ChatStream if there are messages OR if we're actively sending
+  // (covers the optimistic phase when activeSessionId is still null but
+  // the user message has already been appended to messages[])
+  const hasMessages = messages.length > 0 || isSending;
 
   return (
     <div className="h-screen flex flex-col bg-white">

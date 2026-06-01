@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/hooks/useChatStore';
@@ -20,7 +21,9 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ aiMode }: ChatInputProps) {
-  const { sendMessage, isSending } = useChatStore();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { sendMessage, isSending, activeSessionId } = useChatStore();
   const [message, setMessage] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
@@ -39,17 +42,27 @@ export function ChatInput({ aiMode }: ChatInputProps) {
     if (!trimmed || isSending) return;
     if (uploadedFile?.isUploading) return;
 
+    // Clear input immediately (optimistic)
     setMessage('');
     setFileContext(null);
     setUploadedFile(null);
 
-    // sendMessage handles both new chats (no activeSessionId) and existing ones
-    await sendMessage({
+    // Track whether this is a new chat (no activeSessionId yet)
+    const isNewChat = !activeSessionId;
+
+    // sendMessage returns the resolved chatId (or null on error)
+    const chatId = await sendMessage({
       message: trimmed,
       ai_mode: aiMode,
       file_context: fileContext,
     });
-  }, [message, isSending, uploadedFile, aiMode, fileContext, sendMessage]);
+
+    // If this was a new chat and we got a chatId back, navigate to it
+    // so the URL reflects the active session
+    if (isNewChat && chatId && pathname === '/') {
+      router.push(`/?chat=${chatId}`, { scroll: false });
+    }
+  }, [message, isSending, uploadedFile, aiMode, fileContext, sendMessage, activeSessionId, pathname, router]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

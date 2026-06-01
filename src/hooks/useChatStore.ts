@@ -21,7 +21,7 @@ interface ChatState {
   shareSession: (sessionId: string) => Promise<string | null>;
 
   // Message actions
-  sendMessage: (data: ChatRequest) => Promise<void>;
+  sendMessage: (data: ChatRequest) => Promise<string | null>;
   clearMessages: () => void;
 }
 
@@ -126,7 +126,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (data: ChatRequest) => {
     const { activeSessionId } = get();
 
-    // Optimistic: add user message
+    // Optimistic: add user message immediately
     const tempChatId = activeSessionId || `temp-${Date.now()}`;
     const userMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
@@ -150,10 +150,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // If this was a new chat, the backend returns the new chat_id
       const newChatId = response.chat_id || activeSessionId;
-      if (newChatId && newChatId !== activeSessionId) {
+      const isNewSession = newChatId && newChatId !== activeSessionId;
+
+      if (isNewSession) {
         set({ activeSessionId: newChatId });
-        // Refresh sessions to show the new chat in the sidebar
-        get().fetchSessions();
+        // Await the sessions refresh so the sidebar updates immediately
+        await get().fetchSessions();
       }
 
       const assistantMsg: ChatMessage = {
@@ -169,8 +171,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [...state.messages, assistantMsg],
         isSending: false,
       }));
+
+      // Return the chat_id so the caller can handle routing
+      return newChatId || null;
     } catch {
       set({ isSending: false });
+      return null;
     }
   },
 
