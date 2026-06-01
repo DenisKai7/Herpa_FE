@@ -35,6 +35,7 @@ export interface AuthResponse {
 
 export interface User {
   id: string;
+  username: string;
   email: string;
   full_name: string;
   role: UserRole;
@@ -42,6 +43,20 @@ export interface User {
   provinsi: string;
   kota: string;
   created_at: string;
+}
+
+export interface UpdateProfileRequest {
+  username?: string;
+  full_name?: string;
+  email?: string;
+  instansi?: string;
+  provinsi?: string;
+  kota?: string;
+}
+
+export interface ChangePasswordRequest {
+  old_password: string;
+  new_password: string;
 }
 
 // --- Chat ---

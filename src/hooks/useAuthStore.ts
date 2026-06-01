@@ -13,6 +13,7 @@ interface AuthState {
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   initialize: () => Promise<void>;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -56,6 +57,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('access_token');
     set({ user: null, token: null });
+  },
+
+  setUser: (user: User) => {
+    set({ user });
   },
 
   initialize: async () => {
