@@ -99,7 +99,7 @@ function UserDropdown() {
         </div>
         {/* Username */}
         <span className="text-sm font-medium text-gray-700 dark:text-gray-200 hidden sm:inline max-w-[120px] truncate">
-          {user?.full_name || 'User'}
+          {user?.username || user?.full_name || 'User'}
         </span>
         <ChevronDown
           className={cn(
@@ -127,7 +127,7 @@ function UserDropdown() {
             {/* ─ User Info Header ─ */}
             <div className="px-4 py-3 mb-1">
               <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
-                {user?.full_name || 'User'}
+                {user?.full_name || user?.username || 'User'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                 {user?.email || ''}
