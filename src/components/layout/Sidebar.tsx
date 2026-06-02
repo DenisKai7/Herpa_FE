@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import {
   MessageSquarePlus,
   Pin,
-  MoreHorizontal,
-  Pencil,
+  MoreVertical,
+  Edit3,
   Share2,
   Trash2,
   PanelLeftClose,
@@ -28,6 +29,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
+  const router = useRouter();
   const {
     sessions,
     activeSessionId,
@@ -42,11 +44,12 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const { user } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [renameModalOpen, setRenameModalOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
-  const [renameValue, setRenameValue] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  // Inline rename state
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -59,86 +62,161 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
     startNewChat();
   };
 
-  const handleRename = () => {
-    if (renameTarget && renameValue.trim()) {
-      renameSession(renameTarget.id, renameValue.trim());
-      setRenameModalOpen(false);
+  const handleInlineRename = (sessionId: string) => {
+    const trimmed = editTitleValue.trim();
+    if (trimmed) {
+      const originalSession = sessions.find((s) => s.id === sessionId);
+      if (originalSession && trimmed !== originalSession.title) {
+        renameSession(sessionId, trimmed);
+      }
     }
+    setEditingSessionId(null);
   };
 
   const handleDelete = () => {
     if (deleteTarget) {
+      const wasActive = activeSessionId === deleteTarget;
       deleteSession(deleteTarget);
+      if (wasActive) {
+        router.push('/');
+      }
       setDeleteModalOpen(false);
       setDeleteTarget(null);
     }
   };
 
   const handleShare = async (sessionId: string) => {
-    const url = await shareSession(sessionId);
-    if (url) {
-      navigator.clipboard.writeText(url);
-      toast.success('Share link copied to clipboard!');
+    const shareUrl = `${window.location.origin}/share/${sessionId}`;
+    try {
+      await shareSession(sessionId);
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Tautan berhasil disalin ke papan klip!');
+    } catch {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Tautan berhasil disalin ke papan klip!');
     }
   };
 
-  const ChatItem = ({ session }: { session: typeof sessions[0] }) => (
-    <div
-      className={cn(
-        'group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150',
-        activeSessionId === session.id
-          ? 'bg-blue-50 text-blue-700'
-          : 'text-gray-700 hover:bg-gray-100'
-      )}
-      onClick={() => setActiveSession(session.id)}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{session.title}</p>
-      </div>
-      {session.is_pinned && (
-        <Pin className="h-3 w-3 text-blue-500 shrink-0" />
-      )}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <Dropdown
-          trigger={
-            <div className="p-1 rounded-lg hover:bg-gray-200 transition-colors">
-              <MoreHorizontal className="h-4 w-4 text-gray-500" />
-            </div>
+  const ChatItem = ({ session }: { session: typeof sessions[0] }) => {
+    const isEditing = editingSessionId === session.id;
+
+    return (
+      <div
+        className={cn(
+          'group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150',
+          activeSessionId === session.id
+            ? 'bg-blue-50 text-blue-700'
+            : 'text-gray-700 hover:bg-gray-100'
+        )}
+        onClick={() => {
+          if (!isEditing) {
+            setActiveSession(session.id);
           }
-          items={[
-            {
-              label: 'Rename',
-              icon: <Pencil className="h-4 w-4" />,
-              onClick: () => {
-                setRenameTarget({ id: session.id, title: session.title });
-                setRenameValue(session.title);
-                setRenameModalOpen(true);
-              },
-            },
-            {
-              label: session.is_pinned ? 'Unpin' : 'Pin',
-              icon: <Pin className="h-4 w-4" />,
-              onClick: () => pinSession(session.id),
-            },
-            {
-              label: 'Share',
-              icon: <Share2 className="h-4 w-4" />,
-              onClick: () => handleShare(session.id),
-            },
-            {
-              label: 'Delete',
-              icon: <Trash2 className="h-4 w-4" />,
-              onClick: () => {
-                setDeleteTarget(session.id);
-                setDeleteModalOpen(true);
-              },
-              danger: true,
-            },
-          ]}
-        />
+        }}
+      >
+        <div className="flex-1 min-w-0">
+          {isEditing ? (
+            <input
+              type="text"
+              value={editTitleValue}
+              onChange={(e) => setEditTitleValue(e.target.value)}
+              onBlur={() => handleInlineRename(session.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleInlineRename(session.id);
+                } else if (e.key === 'Escape') {
+                  setEditingSessionId(null);
+                }
+              }}
+              className="w-full px-2 py-0.5 text-sm bg-white border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800 font-medium"
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <p className="text-sm font-medium truncate">{session.title}</p>
+          )}
+        </div>
+        {session.is_pinned && !isEditing && (
+          <Pin className="h-3 w-3 text-blue-500 shrink-0" />
+        )}
+        {!isEditing && (
+          <div
+            className={cn(
+              'transition-opacity shrink-0',
+              activeSessionId === session.id
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100'
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Dropdown
+              align="right"
+              menuClassName="bg-[#1A1F2C] border border-gray-800 rounded-xl p-1.5 shadow-xl min-w-0 w-52 z-50"
+              trigger={
+                <div
+                  className={cn(
+                    'p-1 rounded-lg transition-colors cursor-pointer',
+                    activeSessionId === session.id
+                      ? 'hover:bg-blue-100 text-blue-700'
+                      : 'hover:bg-gray-200 text-gray-500'
+                  )}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </div>
+              }
+            >
+              {(close) => (
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    onClick={() => {
+                      handleShare(session.id);
+                      close();
+                    }}
+                    className="w-full flex items-center text-sm text-gray-300 hover:bg-gray-800/60 rounded-lg p-2 transition-colors cursor-pointer"
+                  >
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Bagikan percakapan
+                  </button>
+                  <button
+                    onClick={() => {
+                      pinSession(session.id);
+                      close();
+                    }}
+                    className="w-full flex items-center text-sm text-gray-300 hover:bg-gray-800/60 rounded-lg p-2 transition-colors cursor-pointer"
+                  >
+                    <Pin className="w-4 h-4 mr-2" />
+                    {session.is_pinned ? 'Lepaskan pin' : 'Pin'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingSessionId(session.id);
+                      setEditTitleValue(session.title);
+                      close();
+                    }}
+                    className="w-full flex items-center text-sm text-gray-300 hover:bg-gray-800/60 rounded-lg p-2 transition-colors cursor-pointer"
+                  >
+                    <Edit3 className="w-4 h-4 mr-2" />
+                    Ganti nama
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeleteTarget(session.id);
+                      setDeleteModalOpen(true);
+                      close();
+                    }}
+                    className="w-full flex items-center text-sm text-red-400 hover:bg-gray-800/60 rounded-lg p-2 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2 text-red-400" />
+                    Hapus
+                  </button>
+                </div>
+              )}
+            </Dropdown>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -259,32 +337,6 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           <PanelLeftOpen className="h-5 w-5" />
         </button>
       )}
-
-      {/* Rename Modal */}
-      <Modal
-        isOpen={renameModalOpen}
-        onClose={() => setRenameModalOpen(false)}
-        title="Rename Chat"
-      >
-        <div className="space-y-4">
-          <input
-            type="text"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
-            autoFocus
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setRenameModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleRename}>
-              Save
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Delete Confirmation Modal */}
       <Modal
