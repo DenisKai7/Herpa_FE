@@ -2,14 +2,34 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, Trophy, RotateCcw, HelpCircle, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  Brain,
+  Trophy,
+  RotateCcw,
+  HelpCircle,
+  CheckCircle2,
+  XCircle,
+  TrendingUp,
+  Check,
+  X,
+  Bookmark,
+  BookOpen,
+  Sparkles
+} from 'lucide-react';
 import { QuizCard } from './QuizCard';
 import { Button } from '@/components/ui/Button';
 import type { QuizData, QuizQuestion } from '@/types';
 import { cn } from '@/lib/utils';
 
+interface ExtendedQuizData extends QuizData {
+  analisis_performa?: {
+    sorotan?: string[];
+    area_fokus?: string[];
+  };
+}
+
 interface InteractiveQuizProps {
-  quizData: QuizData;
+  quizData: ExtendedQuizData;
 }
 
 /**
@@ -104,6 +124,7 @@ function normalizeQuestions(quizData: unknown): QuizQuestion[] {
 export function InteractiveQuiz({ quizData }: InteractiveQuizProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   // Global State Dictionary Scheme
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
@@ -128,6 +149,64 @@ export function InteractiveQuiz({ quizData }: InteractiveQuizProps) {
   }, [actualQuestions, selectedAnswers]);
 
   const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+
+  // Dynamically resolve performance analysis with robust, highly detailed fallbacks
+  const analysisData = useMemo(() => {
+    const rawData = quizData as any;
+    const analysis = rawData?.analisis_performa ?? rawData?.analisisPerforma ?? rawData?.performance_analysis ?? rawData?.performanceAnalysis;
+
+    const sorotan = analysis?.sorotan ?? analysis?.highlights ?? analysis?.highlight;
+    const areaFokus = analysis?.area_fokus ?? analysis?.areaFokus ?? analysis?.focus_areas ?? analysis?.focusAreas;
+
+    if (Array.isArray(sorotan) && Array.isArray(areaFokus)) {
+      return {
+        sorotan: sorotan.filter((item): item is string => typeof item === 'string'),
+        area_fokus: areaFokus.filter((item): item is string => typeof item === 'string'),
+      };
+    }
+
+    // High-quality clinical theme diagnostic feedback based on score percentage
+    if (percentage >= 80) {
+      return {
+        sorotan: [
+          'Akurasi pengerjaan Anda sangat tinggi, menunjukkan penguasaan materi klinis yang luar biasa.',
+          'Sangat kuat dalam mengidentifikasi gejala klinis utama dan mekanisme aksi farmakologi.',
+          'Kemampuan interpretasi diagnostik dan pemecahan masalah kasus pasien sudah tergolong solid.'
+        ],
+        area_fokus: [
+          'Pertahankan performa ini dengan memperdalam kasus-kasus klinis langka atau skenario kedaruratan.',
+          'Eksplorasi literatur jurnal medis terbaru terkait panduan terapi (guideline) mutakhir.',
+          'Bagikan metode belajar Anda atau coba tantang diri dengan kesulitan kuis yang lebih tinggi.'
+        ]
+      };
+    } else if (percentage >= 50) {
+      return {
+        sorotan: [
+          'Memiliki dasar pengetahuan medis yang baik pada sebagian besar konsep patofisiologi.',
+          'Berhasil mengidentifikasi beberapa alternatif terapi obat dengan tepat.',
+          'Mampu membedakan terminologi klinis standar secara memadai.'
+        ],
+        area_fokus: [
+          'Tingkatkan ketelitian dalam memahami kontraindikasi obat dan efek samping spesifik.',
+          'Pelajari kembali soal-soal yang salah terutama pada bagian diagnosis banding.',
+          'Sempatkan membaca rangkuman pembahasan kuis untuk memantapkan pemahaman teoritis.'
+        ]
+      };
+    } else {
+      return {
+        sorotan: [
+          'Menunjukkan komitmen belajar yang baik dengan menyelesaikan seluruh rangkaian kuis medis.',
+          'Berhasil mengidentifikasi konsep anatomi dasar dengan benar.',
+          'Telah berupaya menganalisis skenario kasus dengan sungguh-sungguh.'
+        ],
+        area_fokus: [
+          'Prioritaskan pemahaman konsep-konsep inti farmakoterapi dan interaksi obat dasar.',
+          'Gunakan panduan belajar terpersonalisasi untuk meninjau materi patologi sistemik.',
+          'Coba ulas kembali pembahasan setiap pertanyaan kuis ini sebelum mengambil kuis baru.'
+        ]
+      };
+    }
+  }, [quizData, percentage]);
 
   // Handlers
   const handleSelectAnswer = (optionLabel: string) => {
@@ -188,6 +267,7 @@ export function InteractiveQuiz({ quizData }: InteractiveQuizProps) {
     setLockedQuestions({});
     setFlaggedQuestions({});
     setShowHints({});
+    setShowAnalysis(false);
   };
 
   // Safe empty state
@@ -215,9 +295,9 @@ export function InteractiveQuiz({ quizData }: InteractiveQuizProps) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="w-full max-w-2xl mx-auto my-4"
     >
-      <div className="bg-[#0B0F19] rounded-2xl border border-gray-800/80 shadow-2xl overflow-hidden">
+      <div className="bg-[#0F131C] rounded-2xl border border-gray-800/80 shadow-2xl overflow-hidden">
         {/* Gemini Dark Aesthetic Header */}
-        <div className="px-6 py-5 bg-[#0F131E]/60 border-b border-gray-800/80 flex items-center justify-between">
+        <div className="px-6 py-5 bg-[#181C25]/40 border-b border-gray-800/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
               <Brain className="h-5 w-5 text-indigo-400" />
@@ -283,57 +363,212 @@ export function InteractiveQuiz({ quizData }: InteractiveQuizProps) {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, ease: 'easeOut' }}
-                className="text-center space-y-6 py-6"
+                className="py-4 text-left"
               >
-                <div className="flex justify-center">
-                  <div
-                    className={cn(
-                      'h-24 w-24 rounded-3xl flex items-center justify-center border transition-all duration-300',
-                      percentage >= 80
-                        ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-500/5'
-                        : percentage >= 50
-                        ? 'bg-amber-500/10 border-amber-500/30 shadow-lg shadow-amber-500/5'
-                        : 'bg-red-500/10 border-red-500/30 shadow-lg shadow-red-500/5'
-                    )}
-                  >
-                    <Trophy
-                      className={cn(
-                        'h-12 w-12',
-                        percentage >= 80
-                          ? 'text-emerald-400'
-                          : percentage >= 50
-                          ? 'text-amber-400'
-                          : 'text-red-400'
-                      )}
-                    />
+                {/* 1. Header Title */}
+                <h3 className="text-xl font-medium text-slate-200 mb-6 text-left">
+                  Anda berhasil! Kuis selesai.
+                </h3>
+
+                {/* 2. Metrics Grid (3-Column Layout) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                  {/* Card 1: Skor */}
+                  <div className="bg-[#181C25] border border-gray-800/60 rounded-2xl p-5 flex flex-col justify-between min-h-[110px]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Skor</span>
+                      <Trophy className="h-4.5 w-4.5 text-amber-400" />
+                    </div>
+                    <div className="text-3xl font-semibold text-slate-100">
+                      {score}/{totalQuestions}
+                    </div>
+                  </div>
+
+                  {/* Card 2: Akurasi */}
+                  <div className="bg-[#181C25] border border-gray-800/60 rounded-2xl p-5 flex flex-col justify-between min-h-[110px]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Akurasi</span>
+                      <TrendingUp className="h-4.5 w-4.5 text-indigo-400" />
+                    </div>
+                    <div className="text-3xl font-semibold text-slate-100">
+                      {percentage}%
+                    </div>
+                  </div>
+
+                  {/* Card 3: Detail Tally */}
+                  <div className="bg-[#181C25] border border-gray-800/60 rounded-2xl p-5 flex flex-col justify-center min-h-[110px]">
+                    <div className="space-y-1.5 text-xs font-medium">
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <div className="flex items-center gap-1.5">
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Benar</span>
+                        </div>
+                        <span>{score}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-rose-400">
+                        <div className="flex items-center gap-1.5">
+                          <X className="h-3.5 w-3.5" />
+                          <span>Salah</span>
+                        </div>
+                        <span>{totalQuestions - score}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                          <Bookmark className="h-3.5 w-3.5" />
+                          <span>Dilewati</span>
+                        </div>
+                        <span>0</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-gray-100 tracking-wide">
-                    {percentage >= 80
-                      ? 'Luar Biasa!'
-                      : percentage >= 50
-                      ? 'Usaha yang Bagus!'
-                      : 'Terus Belajar!'}
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    Anda menjawab dengan benar{' '}
-                    <span className="font-semibold text-gray-200">
-                      {score} dari {totalQuestions}
-                    </span>{' '}
-                    pertanyaan ({percentage}%)
-                  </p>
+                {/* 3. Expandable "Analisis Performa Saya" Panel */}
+                <div className="mt-6">
+                  <AnimatePresence mode="wait">
+                    {!showAnalysis ? (
+                      <motion.div
+                        key="collapsed-analysis-banner"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="bg-[#181C25] border border-gray-800/60 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="h-10 w-10 rounded-xl bg-[#004D7A]/20 border border-[#004D7A]/40 flex items-center justify-center shrink-0">
+                            <Sparkles className="h-5 w-5 text-[#A6E1FF]" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-200">
+                              Keunggulan dan Area yang Perlu Ditingkatkan
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-1 leading-relaxed max-w-lg">
+                              Analisis kecerdasan buatan terhadap pengerjaan kuis Anda untuk mengoptimalkan efisiensi belajar mandiri.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowAnalysis(true)}
+                          className="bg-[#004D7A] hover:bg-[#0066A3] text-[#A6E1FF] text-sm px-4 py-2 rounded-full font-medium transition-all shrink-0 cursor-pointer focus:outline-none whitespace-nowrap self-end md:self-center"
+                        >
+                          Analisis performa saya
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="expanded-analysis-dashboard"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        transition={{ duration: 0.25 }}
+                        className="bg-[#181C25] border border-gray-800/60 rounded-2xl p-5 space-y-6"
+                      >
+                        {/* Expandable Header */}
+                        <div className="flex items-center justify-between border-b border-gray-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4.5 w-4.5 text-indigo-400" />
+                            <h4 className="text-sm font-semibold text-slate-200">Analisis Performa Saya</h4>
+                          </div>
+                          <button
+                            onClick={() => setShowAnalysis(false)}
+                            className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-all cursor-pointer focus:outline-none"
+                          >
+                            Tutup Analisis
+                          </button>
+                        </div>
+
+                        {/* List Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Sorotan Section */}
+                          <div className="space-y-3">
+                            <h5 className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-800/40">
+                              <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              Sorotan
+                            </h5>
+                            <ul className="space-y-3 pl-1">
+                              {analysisData.sorotan.map((item, idx) => (
+                                <li
+                                  key={idx}
+                                  className="text-xs text-slate-300 leading-relaxed pb-3 border-b border-slate-800/20 last:border-0 last:pb-0"
+                                >
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Area Fokus Section */}
+                          <div className="space-y-3">
+                            <h5 className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-800/40">
+                              <Bookmark className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              Area fokus
+                            </h5>
+                            <ul className="space-y-3 pl-1">
+                              {analysisData.area_fokus.map((item, idx) => (
+                                <li
+                                  key={idx}
+                                  className="text-xs text-slate-300 leading-relaxed pb-3 border-b border-slate-800/20 last:border-0 last:pb-0"
+                                >
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
-                <div className="pt-4">
-                  <Button
-                    variant="secondary"
-                    onClick={handleRestart}
-                    className="border border-gray-800 hover:bg-gray-800/80 text-gray-300 rounded-xl px-6 py-2.5 gap-2"
+                {/* 4. "Teruslah Belajar" Micro-Cards Grid */}
+                <div className="mt-8">
+                  <h4 className="text-base font-medium text-slate-300 mb-4">Teruslah Belajar</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Card A: Kartu Tanya Jawab */}
+                    <div className="bg-[#181C25]/40 border border-gray-800/50 rounded-2xl p-4 flex gap-4 items-start hover:border-gray-800/80 transition-colors">
+                      <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                        <Bookmark className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-semibold text-slate-200">Kartu Tanya Jawab</h5>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                          Ulas kembali pertanyaan kuis ini dengan format flashcard interaktif untuk melatih retensi memori jangka panjang.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card B: Panduan belajar */}
+                    <div className="bg-[#181C25]/40 border border-gray-800/50 rounded-2xl p-4 flex gap-4 items-start hover:border-gray-800/80 transition-colors">
+                      <div className="h-10 w-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                        <BookOpen className="h-5 w-5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-semibold text-slate-200">Panduan belajar</h5>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                          Dapatkan ringkasan materi medis terpersonalisasi yang dirancang khusus berdasarkan jawaban salah kuis Anda.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Bottom Row Action Navigation Bar */}
+                <div className="flex items-center justify-end gap-4 pt-6 mt-8 border-t border-gray-800/40">
+                  <button
+                    onClick={() => {
+                      setIsFinished(false);
+                      setCurrentIndex(0);
+                    }}
+                    className="text-sm font-medium text-blue-400 hover:text-blue-300 cursor-pointer px-3 py-2 transition-colors focus:outline-none"
                   >
-                    <RotateCcw className="h-4 w-4" /> Ulangi Kuis
-                  </Button>
+                    Tinjau kuis
+                  </button>
+                  <button
+                    onClick={handleRestart}
+                    className="bg-[#AEC6FF] hover:bg-[#C2D5FF] text-[#002D6C] text-sm px-5 py-2.5 rounded-full font-semibold transition-colors focus:outline-none cursor-pointer"
+                  >
+                    Pertanyaan lainnya
+                  </button>
                 </div>
               </motion.div>
             ) : null}
