@@ -10,7 +10,32 @@ import { MessageSkeleton } from '@/components/ui/Spinner';
 import { InteractiveQuiz } from '@/components/quiz/InteractiveQuiz';
 import { TypingIndicator } from './TypingIndicator';
 import { useChatStore } from '@/hooks/useChatStore';
-import type { ChatMessage } from '@/types';
+import type { ChatMessage, QuizData } from '@/types';
+
+function getInlineQuizData(message: ChatMessage): QuizData | null {
+  if (message.quiz_data) return message.quiz_data;
+  if (message.role !== 'ai' || typeof message.content !== 'string') return null;
+
+  const content = message.content.trim();
+  if (!content.startsWith('{')) return null;
+  if (!content.includes('daftar_soal') && !content.includes('topik') && !content.includes('questions')) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+    const quizData = parsed as Record<string, unknown>;
+    if (quizData.daftar_soal || quizData.questions) {
+      return quizData as unknown as QuizData;
+    }
+  } catch {
+    // Not valid quiz JSON. Render as normal markdown text.
+  }
+
+  return null;
+}
 
 export function ChatStream() {
   const { messages, isLoadingMessages, isSending } = useChatStore();
@@ -44,6 +69,7 @@ export function ChatStream() {
 
 function MessageBubble({ message, index }: { message: ChatMessage; index: number }) {
   const isUser = message.role === 'user';
+  const quizData = getInlineQuizData(message);
 
   return (
     <motion.div
@@ -60,8 +86,8 @@ function MessageBubble({ message, index }: { message: ChatMessage; index: number
         </p>
 
         {/* Quiz Interception */}
-        {message.quiz_data ? (
-          <InteractiveQuiz quizData={message.quiz_data} />
+        {quizData ? (
+          <InteractiveQuiz quizData={quizData} />
         ) : (
           /* Markdown Content */
           <div className="prose prose-sm prose-gray max-w-none text-gray-800 leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">

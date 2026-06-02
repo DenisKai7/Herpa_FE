@@ -11,7 +11,32 @@ import { chatApi } from '@/lib/api/chat';
 import { Avatar } from '@/components/ui/Avatar';
 import { Spinner } from '@/components/ui/Spinner';
 import { InteractiveQuiz } from '@/components/quiz/InteractiveQuiz';
-import type { SharedChatData } from '@/types';
+import type { ChatMessage, QuizData, SharedChatData } from '@/types';
+
+function getInlineQuizData(message: ChatMessage): QuizData | null {
+  if (message.quiz_data) return message.quiz_data;
+  if (message.role !== 'ai' || typeof message.content !== 'string') return null;
+
+  const content = message.content.trim();
+  if (!content.startsWith('{')) return null;
+  if (!content.includes('daftar_soal') && !content.includes('topik') && !content.includes('questions')) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+    const quizData = parsed as Record<string, unknown>;
+    if (quizData.daftar_soal || quizData.questions) {
+      return quizData as unknown as QuizData;
+    }
+  } catch {
+    // Not valid quiz JSON. Render as normal markdown text.
+  }
+
+  return null;
+}
 
 export default function SharedChatPage() {
   const params = useParams();
@@ -90,34 +115,38 @@ export default function SharedChatPage() {
 
       {/* Chat Messages */}
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-2">
-        {chatData.messages.map((msg, index) => (
-          <motion.div
-            key={msg.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.5) }}
-            className="flex gap-3 py-3"
-          >
-            <Avatar type={msg.role} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-400 mb-1">
-                {msg.role === 'user' ? 'User' : 'MedBot AI'}
-              </p>
-              {msg.quiz_data ? (
-                <InteractiveQuiz quizData={msg.quiz_data} />
-              ) : (
-                <div className="prose prose-sm prose-gray max-w-none text-gray-800 leading-relaxed">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeHighlight]}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ))}
+        {chatData.messages.map((msg, index) => {
+          const quizData = getInlineQuizData(msg);
+
+          return (
+            <motion.div
+              key={msg.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.5) }}
+              className="flex gap-3 py-3"
+            >
+              <Avatar type={msg.role} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-400 mb-1">
+                  {msg.role === 'user' ? 'User' : 'MedBot AI'}
+                </p>
+                {quizData ? (
+                  <InteractiveQuiz quizData={quizData} />
+                ) : (
+                  <div className="prose prose-sm prose-gray max-w-none text-gray-800 leading-relaxed">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeHighlight]}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
       </main>
 
       {/* Footer */}
