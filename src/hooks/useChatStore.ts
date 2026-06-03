@@ -136,6 +136,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       quiz_data: null,
       file_context: data.file_context || null,
       created_at: new Date().toISOString(),
+      metadata: data.file_url ? {
+        file_url: data.file_url,
+        file_name: data.file_name || undefined,
+        file_type: data.file_type || undefined,
+      } : null,
+      file_url: data.file_url || null,
+      file_name: data.file_name || null,
+      file_type: data.file_type || null,
     };
 
     set((state) => ({

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import { FileText } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { MessageSkeleton } from '@/components/ui/Spinner';
 import { InteractiveQuiz } from '@/components/quiz/InteractiveQuiz';
@@ -36,6 +37,21 @@ function getInlineQuizData(message: ChatMessage): QuizData | null {
 
   return null;
 }
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return 'PDF Document';
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
+
+const isImageFile = (type?: string, url?: string) => {
+  if (type) return type.startsWith('image/');
+  if (url) return /\.(jpeg|jpg|gif|png|webp|svg)/i.test(url);
+  return false;
+};
 
 export function ChatStream() {
   const { messages, isLoadingMessages, isSending } = useChatStore();
@@ -71,6 +87,33 @@ function MessageBubble({ message, index }: { message: ChatMessage; index: number
   const isUser = message.role === 'user';
   const quizData = getInlineQuizData(message);
 
+  const attachment = (() => {
+    if (!isUser || !message) return null;
+    const directUrl = message.file_url;
+    if (directUrl) {
+      return {
+        url: directUrl,
+        name: message.file_name || 'Attached file',
+        type: message.file_type || (directUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf'),
+        size: message.file_size || undefined,
+      };
+    }
+    const meta = message.metadata;
+    if (meta) {
+      const m = meta as Record<string, unknown>;
+      const urlVal = (m.file_url || m.url) as string | undefined;
+      if (urlVal) {
+        return {
+          url: urlVal,
+          name: (m.file_name || m.filename || 'Attached file') as string,
+          type: (m.file_type || m.content_type || m.type || (urlVal.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf')) as string,
+          size: (m.file_size || m.size) as number | undefined,
+        };
+      }
+    }
+    return null;
+  })();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -84,6 +127,25 @@ function MessageBubble({ message, index }: { message: ChatMessage; index: number
         <p className="text-xs font-medium text-gray-400 mb-1">
           {isUser ? 'You' : 'MedBot AI'}
         </p>
+
+        {/* Attachment Preview (above message content) */}
+        {attachment && (
+          isImageFile(attachment.type, attachment.url) ? (
+            <div className="relative max-w-sm rounded-2xl overflow-hidden border border-gray-800/80 bg-[#181C25]/40 my-2 group transition-all duration-200 hover:border-gray-750">
+              <img src={attachment.url} alt="Attached medical file" className="max-h-60 w-auto object-cover rounded-2xl" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 max-w-md p-3 rounded-xl bg-[#1A1F2C] border border-gray-800 my-2 hover:bg-[#242A38] transition-colors duration-200">
+              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-blue-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-200 truncate">{attachment.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{formatFileSize(attachment.size)}</p>
+              </div>
+            </div>
+          )
+        )}
 
         {/* Quiz Interception */}
         {quizData ? (

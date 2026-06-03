@@ -75,10 +75,21 @@ export interface ChatMessage {
   chat_id: string;
   role: MessageRole;
   content: string;
-  metadata?: { is_quiz?: boolean; intent?: string } | null;
+  metadata?: {
+    is_quiz?: boolean;
+    intent?: string;
+    file_url?: string;
+    file_name?: string;
+    file_type?: string;
+    file_size?: number;
+  } | null;
   quiz_data: QuizData | null;
   file_context: string | null;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
 }
 
 export interface ChatRequest {
@@ -86,6 +97,9 @@ export interface ChatRequest {
   ai_mode: AiMode;
   chat_id?: string | null;
   file_context?: string | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
 }
 
 export interface ChatResponse {
@@ -139,6 +153,7 @@ export interface FileUploadResponse {
   filename: string;
   extracted_text: string;
   content_type: string;
+  url?: string;
 }
 
 // --- Admin ---
