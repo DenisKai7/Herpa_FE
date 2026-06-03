@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -72,7 +72,7 @@ const extractAttachment = (message: ChatMessage) => {
   // 2. attachments array or object
   const anyMsg = message as unknown as Record<string, unknown>;
   if (anyMsg.attachments) {
-    let atts = anyMsg.attachments;
+    let atts: any = anyMsg.attachments;
     if (typeof atts === 'string') {
       try {
         atts = JSON.parse(atts);
@@ -107,7 +107,7 @@ const extractAttachment = (message: ChatMessage) => {
   // 3. metadata field (can be JSON object or stringified JSON)
   const meta = message.metadata;
   if (meta) {
-    let m = meta as unknown as Record<string, unknown>;
+    let m: any = meta as unknown as Record<string, unknown>;
     if (typeof m === 'string') {
       try {
         m = JSON.parse(m);
@@ -181,15 +181,11 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
             isImageFile(attachment.type, attachment.url) ? (
               <div
                 onClick={() => setActiveLightboxUrl(attachment.url)}
-                className="relative mt-2 max-w-[200px] rounded-xl border border-gray-850 bg-[#161920] overflow-hidden cursor-pointer transition-all duration-250 hover:scale-[1.02] hover:border-gray-700 shadow-md group"
+                className="relative mt-2 max-w-[220px] rounded-xl border border-gray-880 bg-[#151922] overflow-hidden cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:border-gray-700 shadow-md group"
               >
-                <img
-                  src={attachment.url}
-                  alt="Uploaded compound asset"
-                  className="w-full h-auto max-h-40 object-contain block p-1"
-                />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <ZoomIn className="w-4 h-4 text-white/95" />
+                <img src={attachment.url} alt="Medical attachment" className="w-full h-auto max-h-40 object-contain block p-1" />
+                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ZoomIn className="w-4 h-4 text-white/90" />
                 </div>
               </div>
             ) : (
@@ -292,40 +288,22 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
       </motion.div>
 
       {/* Full-Screen Image Lightbox Popup Component */}
-      <AnimatePresence>
-        {activeLightboxUrl && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setActiveLightboxUrl(null)}
-            className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
-          >
-            {/* Circular Exit Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveLightboxUrl(null);
-              }}
-              className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 border border-gray-800 text-gray-400 hover:text-white transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Image Presentation */}
-            <motion.img
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              src={activeLightboxUrl}
-              alt="Fullscreen preview"
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl select-none"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {activeLightboxUrl && (
+        <div
+          onClick={() => setActiveLightboxUrl(null)}
+          className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
+        >
+          <button className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 border border-gray-850 text-gray-400 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={activeLightboxUrl}
+            alt="Fullscreen preview visual"
+            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl select-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 }
