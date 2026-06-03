@@ -144,22 +144,22 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const quizData = getInlineQuizData(message);
   const attachment = extractAttachment(message);
-  const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
+  const [activeLightboxUrl, setActiveLightboxUrl] = useState<string | null>(null);
 
   // Esc key closure for Lightbox popup modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setActivePreviewUrl(null);
+        setActiveLightboxUrl(null);
       }
     };
-    if (activePreviewUrl) {
+    if (activeLightboxUrl) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [activePreviewUrl]);
+  }, [activeLightboxUrl]);
 
   return (
     <>
@@ -180,16 +180,16 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
           {attachment && (
             isImageFile(attachment.type, attachment.url) ? (
               <div
-                onClick={() => setActivePreviewUrl(attachment.url)}
-                className="relative max-w-[240px] max-h-[180px] rounded-xl border border-gray-800 bg-[#161A23] overflow-hidden cursor-pointer transition-transform duration-200 hover:scale-[1.02] shadow-md group"
+                onClick={() => setActiveLightboxUrl(attachment.url)}
+                className="relative mt-2 max-w-[200px] rounded-xl border border-gray-850 bg-[#161920] overflow-hidden cursor-pointer transition-all duration-250 hover:scale-[1.02] hover:border-gray-700 shadow-md group"
               >
                 <img
                   src={attachment.url}
-                  alt="Chat attachment"
-                  className="w-full h-full object-cover max-h-[180px]"
+                  alt="Uploaded compound asset"
+                  className="w-full h-auto max-h-40 object-contain block p-1"
                 />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <ZoomIn className="w-5 h-5 text-white/80" />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ZoomIn className="w-4 h-4 text-white/95" />
                 </div>
               </div>
             ) : (
@@ -293,23 +293,23 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
 
       {/* Full-Screen Image Lightbox Popup Component */}
       <AnimatePresence>
-        {activePreviewUrl && (
+        {activeLightboxUrl && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setActivePreviewUrl(null)}
-            className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[999] flex items-center justify-center animate-fade-in"
+            onClick={() => setActiveLightboxUrl(null)}
+            className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
           >
-            {/* Explicit Dismiss Button */}
+            {/* Circular Exit Button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setActivePreviewUrl(null);
+                setActiveLightboxUrl(null);
               }}
-              className="absolute top-4 right-4 p-2 cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 border border-gray-800 text-gray-400 hover:text-white transition-colors cursor-pointer"
             >
-              <X className="w-6 h-6 text-gray-400 hover:text-white transition-colors" />
+              <X className="w-5 h-5" />
             </button>
 
             {/* Image Presentation */}
@@ -318,10 +318,10 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              src={activePreviewUrl}
-              alt="Lightbox Preview"
+              src={activeLightboxUrl}
+              alt="Fullscreen preview"
               onClick={(e) => e.stopPropagation()}
-              className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl select-none"
             />
           </motion.div>
         )}
