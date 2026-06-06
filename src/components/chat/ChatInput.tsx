@@ -103,7 +103,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 pb-4">
-      <div className="relative bg-white border border-gray-200 rounded-2xl shadow-lg transition-shadow focus-within:shadow-xl focus-within:border-gray-300">
+      <div className="relative bg-slate-50 border border-slate-200 dark:bg-[#1e293b] dark:border-slate-800 rounded-2xl shadow-lg transition-shadow focus-within:shadow-xl focus-within:border-slate-350 dark:focus-within:border-slate-700">
         {/* File Preview Area (appears above input) */}
         <AnimatePresence>
           {uploadedFile && (
@@ -113,8 +113,8 @@ export function ChatInput({ aiMode }: ChatInputProps) {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="px-4 pt-3 flex border-b border-gray-100">
-                <div className="relative bg-gray-50 border border-gray-200 rounded-xl p-2 flex items-center gap-2 mb-3 max-w-[280px] group">
+              <div className="px-4 pt-3 flex border-b border-gray-150 dark:border-gray-800">
+                <div className="relative bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 rounded-xl p-2 flex items-center gap-2 mb-3 max-w-[280px] group">
                   {/* Thumbnail / Icon */}
                   {uploadedFile.preview ? (
                     <img
@@ -123,23 +123,23 @@ export function ChatInput({ aiMode }: ChatInputProps) {
                       className="h-10 w-10 rounded-lg object-cover shrink-0"
                     />
                   ) : (
-                    <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
                       <FileText className="h-5 w-5 text-blue-500" />
                     </div>
                   )}
                   {/* File Info */}
                   <div className="flex-1 min-w-0 pr-4">
-                    <p className="text-xs font-medium text-gray-700 truncate">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
                       {uploadedFile.fileName}
                     </p>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
                       {uploadedFile.isUploading ? 'Uploading...' : 'Ready'}
                     </p>
                   </div>
                   {/* Close Button */}
                   <button
                     onClick={handleRemoveFile}
-                    className="absolute -top-1.5 -right-1.5 p-1 rounded-full bg-white border border-gray-200 shadow-sm text-gray-400 hover:text-gray-600 cursor-pointer"
+                    className="absolute -top-1.5 -right-1.5 p-1 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -168,7 +168,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
             onKeyDown={handleKeyDown}
             placeholder="Ask anything about medicine, herbs, or chemistry..."
             rows={1}
-            className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none leading-relaxed max-h-40"
+            className="flex-1 resize-none bg-transparent text-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none leading-relaxed max-h-40"
           />
 
           {/* Model Selector */}
@@ -186,7 +186,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
               'shrink-0 p-2.5 rounded-xl transition-all duration-200 cursor-pointer',
               canSend
                 ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
             )}
           >
             <Send className="h-4 w-4" />
@@ -194,7 +194,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
         </div>
       </div>
 
-      <p className="text-center text-[11px] text-gray-400 mt-2">
+      <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 mt-2">
         MedBot AI can make mistakes. Verify important medical information with professionals.
       </p>
     </div>

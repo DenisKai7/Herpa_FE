@@ -43,10 +43,10 @@ export function WelcomeScreen() {
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           Hello! I&apos;m MedBot AI
         </h1>
-        <p className="text-base text-gray-500 mb-10 max-w-md mx-auto">
+        <p className="text-base text-gray-500 dark:text-gray-400 mb-10 max-w-md mx-auto">
           Your intelligent assistant for medical, herbal, and chemistry education. Ask me anything or try a suggestion below.
         </p>
 
@@ -58,14 +58,14 @@ export function WelcomeScreen() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.2 + i * 0.08 }}
-              className="flex items-start gap-3 p-4 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all text-left shadow-sm hover:shadow-md cursor-pointer group"
+              className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#1e293b] hover:bg-gray-100/50 dark:hover:bg-[#2b394e] hover:border-gray-300 dark:hover:border-gray-700 transition-all text-left shadow-sm hover:shadow-md cursor-pointer group"
             >
               <div className="mt-0.5 shrink-0">{suggestion.icon}</div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-gray-500 mb-0.5">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
                   {suggestion.title}
                 </p>
-                <p className="text-sm text-gray-700 leading-snug group-hover:text-gray-900 transition-colors">
+                <p className="text-sm text-gray-700 dark:text-gray-200 leading-snug group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                   {suggestion.prompt}
                 </p>
               </div>

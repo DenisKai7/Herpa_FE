@@ -58,14 +58,14 @@ export default function HomePage() {
   const hasMessages = messages.length > 0 || isSending;
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col bg-white dark:bg-[#030712] text-gray-900 dark:text-gray-100 transition-colors duration-200">
       <Header aiMode={aiMode} onAiModeChange={setAiMode} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
         />
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#030712] transition-colors duration-200">
           {/* Chat Messages or Welcome */}
           <div className="flex-1 overflow-y-auto">
             {hasMessages ? <ChatStream /> : <WelcomeScreen />}
