@@ -57,16 +57,16 @@ function FormInput({
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-sm font-medium text-gray-400"
+        className="block text-sm font-medium text-slate-600 dark:text-slate-400"
       >
         {label}
       </label>
       <div className="relative">
-        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500">
+        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
           {icon}
         </div>
         {prefix && (
-          <span className="absolute left-10 top-1/2 -translate-y-1/2 text-gray-500 text-sm select-none">
+          <span className="absolute left-10 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 text-sm select-none font-medium">
             {prefix}
           </span>
         )}
@@ -78,10 +78,11 @@ function FormInput({
           placeholder={placeholder}
           disabled={disabled}
           className={cn(
-            'w-full py-3 border rounded-xl text-sm text-gray-100 transition-all duration-200',
-            'bg-gray-800/50 border-gray-700',
-            'placeholder:text-gray-600',
-            'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50',
+            'w-full py-3 border rounded-xl text-sm transition-all duration-200',
+            'bg-white text-slate-900 border-slate-200 focus:ring-purple-500/40 focus:border-purple-500',
+            'dark:bg-[#1f2937] dark:text-white dark:border-slate-700 dark:focus:ring-blue-500/50 dark:focus:border-blue-500',
+            'placeholder:text-slate-400 dark:placeholder:text-gray-650',
+            'focus:outline-none focus:ring-2',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             prefix ? 'pl-14 pr-4' : 'pl-11 pr-4'
           )}
@@ -106,12 +107,12 @@ function PasswordInput({ id, label, value, onChange, placeholder }: PasswordInpu
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-sm font-medium text-gray-400"
+        className="block text-sm font-medium text-slate-600 dark:text-slate-400"
       >
         {label}
       </label>
       <div className="relative">
-        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
         <input
           id={id}
           type={show ? 'text' : 'password'}
@@ -119,16 +120,17 @@ function PasswordInput({ id, label, value, onChange, placeholder }: PasswordInpu
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className={cn(
-            'w-full pl-11 pr-11 py-3 border rounded-xl text-sm text-gray-100 transition-all duration-200',
-            'bg-gray-800/50 border-gray-700',
-            'placeholder:text-gray-600',
-            'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50'
+            'w-full pl-11 pr-11 py-3 border rounded-xl text-sm transition-all duration-200',
+            'bg-white text-slate-900 border-slate-200 focus:ring-purple-500/40 focus:border-purple-500',
+            'dark:bg-[#1f2937] dark:text-white dark:border-slate-700 dark:focus:ring-blue-500/50 dark:focus:border-blue-500',
+            'placeholder:text-slate-400 dark:placeholder:text-gray-650',
+            'focus:outline-none focus:ring-2'
           )}
         />
         <button
           type="button"
           onClick={() => setShow(!show)}
-          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
         >
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
@@ -192,7 +194,7 @@ export default function ProfilePage() {
   // ── Loading state ──
   if (!isInitialized || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#090d16]">
         <Spinner size="lg" />
       </div>
     );
@@ -301,20 +303,20 @@ export default function ProfilePage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#090d16] dark:text-white transition-colors duration-200">
       {/* ── Header ────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-gray-900/80 backdrop-blur-md border-b border-gray-800">
+      <header className="sticky top-0 z-30 bg-white/80 dark:bg-[#111827]/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/')}
-              className="p-2 rounded-xl text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-all duration-200 cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-gray-200 transition-all duration-200 cursor-pointer"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-400" />
-              <h1 className="text-lg font-semibold text-gray-100">Profile</h1>
+              <User className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+              <h1 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Profile</h1>
             </div>
           </div>
 
@@ -323,7 +325,7 @@ export default function ProfilePage() {
             onClick={handleLogout}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium',
-              'text-red-400 hover:bg-red-500/10 hover:text-red-300',
+              'text-red-500 dark:text-red-400 hover:bg-red-500/5 dark:hover:bg-red-500/10 hover:text-red-650 dark:hover:text-red-300',
               'transition-all duration-200 cursor-pointer'
             )}
           >
@@ -340,10 +342,10 @@ export default function ProfilePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="bg-gray-900 rounded-2xl border border-gray-800 shadow-sm overflow-hidden"
+            className="bg-white dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"
           >
             {/* ── Avatar Section ───────────────────────────────── */}
-            <div className="px-6 py-10 flex flex-col items-center border-b border-gray-800">
+            <div className="px-6 py-10 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
               {/* Clickable Avatar */}
               <div className="relative mb-5">
                 <button
@@ -351,7 +353,7 @@ export default function ProfilePage() {
                   onClick={handleAvatarClick}
                   onMouseEnter={() => setIsAvatarHovered(true)}
                   onMouseLeave={() => setIsAvatarHovered(false)}
-                  className="relative h-24 w-24 rounded-full bg-blue-900/40 flex items-center justify-center text-blue-400 font-bold text-4xl cursor-pointer overflow-hidden ring-4 ring-gray-800 transition-all duration-300 hover:ring-blue-500/30"
+                  className="relative h-24 w-24 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-4xl cursor-pointer overflow-hidden ring-4 ring-slate-100 dark:ring-gray-800 transition-all duration-300 hover:ring-blue-500/30"
                 >
                   {initials}
 
@@ -382,14 +384,14 @@ export default function ProfilePage() {
               </div>
 
               {/* Name + Role Badge */}
-              <h2 className="text-xl font-semibold text-gray-100">{user.full_name}</h2>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-900/40 text-blue-300 mt-2 capitalize">
+              <h2 className="text-xl font-semibold text-slate-850 dark:text-gray-100">{user.full_name}</h2>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mt-2 capitalize">
                 {user.role === 'admin' && <Shield className="h-3 w-3 mr-1.5" />}
                 {user.role}
               </span>
 
               {/* Joined date */}
-              <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-500">
+              <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500 dark:text-gray-500">
                 <Calendar className="h-3.5 w-3.5" />
                 <span>Joined {joinedDate}</span>
               </div>
@@ -399,7 +401,7 @@ export default function ProfilePage() {
             <div className="p-6 space-y-6">
               {/* Section: Personal Information */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-5">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
                   Personal Information
                 </h3>
 
@@ -438,11 +440,11 @@ export default function ProfilePage() {
               </div>
 
               {/* Divider */}
-              <div className="border-t border-gray-800" />
+              <div className="border-t border-slate-200 dark:border-gray-800" />
 
               {/* Section: Institution & Location */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-5">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
                   Institution & Location
                 </h3>
 
@@ -480,22 +482,22 @@ export default function ProfilePage() {
               </div>
 
               {/* Divider */}
-              <div className="border-t border-gray-800" />
+              <div className="border-t border-slate-200 dark:border-gray-800" />
 
               {/* ── Security Section ──────────────────────────── */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-5">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
                   Security
                 </h3>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-gray-800/40 border border-gray-700/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-gray-800/40 border border-slate-200 dark:border-gray-700/50">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gray-700/50 flex items-center justify-center">
-                      <KeyRound className="h-5 w-5 text-gray-400" />
+                    <div className="h-10 w-10 rounded-xl bg-slate-200/50 dark:bg-gray-700/50 flex items-center justify-center">
+                      <KeyRound className="h-5 w-5 text-slate-500 dark:text-gray-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-200">Password</p>
-                      <p className="text-xs text-gray-500">Last changed &mdash; unknown</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-gray-200">Password</p>
+                      <p className="text-xs text-slate-550 dark:text-gray-500">Last changed &mdash; unknown</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -504,15 +506,15 @@ export default function ProfilePage() {
                       onClick={() => setShowPasswordModal(true)}
                       className={cn(
                         'px-4 py-2 rounded-xl text-sm font-medium',
-                        'bg-gray-700 text-gray-200',
-                        'hover:bg-gray-600 transition-all duration-200 cursor-pointer'
+                        'bg-slate-200/60 dark:bg-gray-700 text-slate-700 dark:text-gray-200',
+                        'hover:bg-slate-200 dark:hover:bg-gray-600 transition-all duration-200 cursor-pointer'
                       )}
                     >
                       Change Password
                     </button>
                     <button
                       type="button"
-                      className="text-sm text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer"
                     >
                       Forgot Password?
                     </button>
@@ -522,7 +524,7 @@ export default function ProfilePage() {
             </div>
 
             {/* ── Action Buttons ───────────────────────────────── */}
-            <div className="px-6 py-5 border-t border-gray-800 bg-gray-900/50">
+            <div className="px-6 py-5 border-t border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/50">
               <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3">
                 {/* Cancel */}
                 <button
@@ -530,7 +532,7 @@ export default function ProfilePage() {
                   onClick={() => router.push('/')}
                   className={cn(
                     'w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm font-medium',
-                    'text-gray-300 hover:bg-gray-800',
+                    'text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800',
                     'transition-all duration-200 cursor-pointer'
                   )}
                 >
@@ -544,7 +546,7 @@ export default function ProfilePage() {
                   className={cn(
                     'w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium',
                     'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800',
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2 focus:ring-offset-gray-900',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
                     'disabled:opacity-50 disabled:cursor-not-allowed',
                     'transition-all duration-200 shadow-sm cursor-pointer'
                   )}
@@ -572,8 +574,8 @@ export default function ProfilePage() {
               onClick={handleLogout}
               className={cn(
                 'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-medium',
-                'bg-gray-900 border border-gray-800',
-                'text-red-400 hover:bg-red-500/10 hover:border-red-500/20',
+                'bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800',
+                'text-red-550 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-100 dark:hover:border-red-500/20',
                 'transition-all duration-200 cursor-pointer'
               )}
             >
@@ -624,7 +626,7 @@ export default function ProfilePage() {
                 setShowPasswordModal(false);
                 setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
               }}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
             >
               Cancel
             </button>
