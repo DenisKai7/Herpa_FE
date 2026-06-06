@@ -105,8 +105,8 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         className={cn(
           'group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150',
           activeSessionId === session.id
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-gray-700 hover:bg-gray-100'
+            ? 'bg-blue-50 dark:bg-[#1e293b] text-blue-700 dark:text-blue-400'
+            : 'text-slate-750 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-[#1e293b]'
         )}
         onClick={() => {
           if (!isEditing) {
@@ -128,7 +128,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   setEditingSessionId(null);
                 }
               }}
-              className="w-full px-2 py-0.5 text-sm bg-white border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800 font-medium"
+              className="w-full px-2 py-0.5 text-sm bg-white dark:bg-gray-800 border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-900 dark:text-gray-150 font-medium"
               autoFocus
               onClick={(e) => e.stopPropagation()}
             />
@@ -157,8 +157,8 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   className={cn(
                     'p-1 rounded-lg transition-colors cursor-pointer',
                     activeSessionId === session.id
-                      ? 'hover:bg-blue-100 text-blue-700'
-                      : 'hover:bg-gray-200 text-gray-500'
+                      ? 'hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                      : 'hover:bg-slate-200 dark:hover:bg-gray-800 text-slate-500 dark:text-gray-400'
                   )}
                 >
                   <MoreVertical className="h-4 w-4" />
@@ -227,22 +227,22 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             animate={{ width: 280, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="h-full bg-gray-50/80 border-r border-gray-200 flex flex-col overflow-hidden shrink-0"
+            className="h-full bg-slate-100/90 border-r border-slate-200 dark:bg-[#0b0f19] dark:border-slate-800 flex flex-col overflow-hidden shrink-0 transition-colors duration-200"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-800">Chats</h2>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-zinc-50">Chats</h2>
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleNewChat}
-                  className="p-2 rounded-xl text-gray-500 hover:bg-gray-200 hover:text-blue-600 transition-colors cursor-pointer"
+                  className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-200/80 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                   title="New chat"
                 >
                   <MessageSquarePlus className="h-5 w-5" />
                 </button>
                 <button
                   onClick={onToggle}
-                  className="p-2 rounded-xl text-gray-500 hover:bg-gray-200 transition-colors cursor-pointer"
+                  className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-200/80 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                   title="Collapse sidebar"
                 >
                   <PanelLeftClose className="h-5 w-5" />
@@ -253,13 +253,13 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             {/* Search */}
             <div className="px-3 py-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-450 dark:text-gray-500" />
                 <input
                   type="text"
                   placeholder="Search chats..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-white text-slate-900 border border-slate-250 dark:bg-[#1e293b] dark:text-zinc-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all placeholder:text-slate-400 dark:placeholder:text-gray-500"
                 />
               </div>
             </div>
@@ -276,7 +276,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 <>
                   {pinnedSessions.length > 0 && (
                     <div className="mb-2">
-                      <p className="px-3 py-1 text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      <p className="px-3 py-1 text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
                         Pinned
                       </p>
                       {pinnedSessions.map((s) => (
@@ -287,9 +287,9 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   {unpinnedSessions.length > 0 && (
                     <div>
                       {pinnedSessions.length > 0 && (
-                        <p className="px-3 py-1 text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        <p className="px-3 py-1 text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
                           Recent
-                        </p>
+                      </p>
                       )}
                       {unpinnedSessions.map((s) => (
                         <ChatItem key={s.id} session={s} />
@@ -298,7 +298,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   )}
                   {filteredSessions.length === 0 && (
                     <div className="text-center py-8">
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-slate-400 dark:text-slate-500">
                         {searchQuery ? 'No chats found.' : 'No chats yet.'}
                       </p>
                     </div>
@@ -309,16 +309,16 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
             {/* User Footer */}
             {user && (
-              <div className="border-t border-gray-100 px-4 py-3">
+              <div className="border-t border-slate-200 dark:border-slate-800 px-4 py-3 text-slate-850 dark:text-zinc-200">
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm">
+                  <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-sm shrink-0">
                     {user.full_name?.charAt(0).toUpperCase() || '?'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-zinc-200 truncate">
                       {user.full_name || 'User'}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">{user.email || '-'}</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-450 truncate">{user.email || '-'}</p>
                   </div>
                 </div>
               </div>
@@ -331,7 +331,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
       {!isOpen && (
         <button
           onClick={onToggle}
-          className="fixed top-3 left-3 z-40 p-2 rounded-xl bg-white border border-gray-200 shadow-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+          className="fixed top-3 left-3 z-40 p-2 rounded-xl bg-white dark:bg-[#1a1f2c] border border-slate-200 dark:border-slate-800 shadow-sm text-slate-500 dark:text-gray-400 hover:text-slate-705 dark:hover:text-gray-250 hover:bg-slate-100 dark:hover:bg-gray-850 transition-colors cursor-pointer"
           title="Open sidebar"
         >
           <PanelLeftOpen className="h-5 w-5" />
