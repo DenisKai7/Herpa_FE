@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut,
@@ -218,6 +219,9 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
   const { user } = useAuthStore();
   const router = useRouter();
 
+  const currentRole = user?.role;
+  const isStudent = user?.role?.toLowerCase() === 'pelajar' || currentRole?.toLowerCase() === 'pelajar';
+
   const currentMode = AI_MODES.find((m) => m.value === aiMode) || AI_MODES[0];
 
   return (
@@ -265,15 +269,6 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
 
       {/* Right: Admin button + User Menu */}
       <div className="flex items-center gap-2">
-        {user?.role === 'pelajar' && (
-          <button
-            onClick={() => router.push('/quiz')}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-extrabold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-sm hover:shadow transition-all cursor-pointer mr-1"
-          >
-            <GraduationCap className="h-4 w-4" />
-            <span>Kuis</span>
-          </button>
-        )}
         {user?.role === 'admin' && (
           <button
             onClick={() => router.push('/admin')}
@@ -282,6 +277,14 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Admin</span>
           </button>
+        )}
+        {user && (
+          <Link
+            href="/quiz"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium shadow-sm hover:opacity-90 transition-all mr-3"
+          >
+            ✨ Mulai Quiz
+          </Link>
         )}
         <UserDropdown />
       </div>
