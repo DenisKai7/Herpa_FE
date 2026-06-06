@@ -279,12 +279,39 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
           </button>
         )}
         {user && (
-          <Link
-            href="/quiz"
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium shadow-sm hover:opacity-90 transition-all mr-3"
+          <Dropdown
+            align="right"
+            menuClassName="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-1.5 shadow-xl w-48 z-50"
+            trigger={
+              <div className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium shadow-sm hover:opacity-90 transition-all cursor-pointer text-sm mr-2 select-none">
+                <span>Menu Fitur</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </div>
+            }
           >
-            ✨ Mulai Quiz
-          </Link>
+            {(close) => (
+              <div className="flex flex-col gap-0.5">
+                <button
+                  onClick={() => {
+                    router.push('/quiz');
+                    close();
+                  }}
+                  className="w-full flex items-center text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 rounded-lg p-2.5 transition-colors cursor-pointer text-left font-medium"
+                >
+                  ✨ Mulai Quiz
+                </button>
+                <button
+                  onClick={() => {
+                    router.push('/recommendation');
+                    close();
+                  }}
+                  className="w-full flex items-center text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 rounded-lg p-2.5 transition-colors cursor-pointer text-left font-medium"
+                >
+                  🌿 Rekomendasi Obat
+                </button>
+              </div>
+            )}
+          </Dropdown>
         )}
         <UserDropdown />
       </div>
