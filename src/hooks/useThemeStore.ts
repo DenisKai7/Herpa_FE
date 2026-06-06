@@ -8,11 +8,16 @@ interface ThemeState {
   setTheme: (theme: Theme) => void;
 }
 
+const getInitialTheme = (): Theme => {
+  if (typeof window === 'undefined') return 'light';
+  const saved = localStorage.getItem('theme') as Theme | null;
+  if (saved) return saved;
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return prefersDark ? 'dark' : 'light';
+};
+
 export const useThemeStore = create<ThemeState>((set) => ({
-  theme:
-    (typeof window !== 'undefined'
-      ? (localStorage.getItem('theme') as Theme)
-      : null) || 'light',
+  theme: getInitialTheme(),
 
   toggleTheme: () =>
     set((state) => {

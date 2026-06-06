@@ -218,6 +218,7 @@ function UserDropdown() {
 export function Header({ aiMode, onAiModeChange }: HeaderProps) {
   const { user } = useAuthStore();
   const router = useRouter();
+  const { theme, toggleTheme } = useThemeStore();
 
   const currentRole = user?.role;
   const isStudent = user?.role?.toLowerCase() === 'pelajar' || currentRole?.toLowerCase() === 'pelajar';
@@ -313,6 +314,17 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
             )}
           </Dropdown>
         )}
+        <button
+          onClick={toggleTheme}
+          className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-all cursor-pointer shadow-sm mr-1"
+          aria-label="Toggle Theme"
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-4 w-4 text-amber-500" />
+          ) : (
+            <Moon className="h-4 w-4 text-slate-500" />
+          )}
+        </button>
         <UserDropdown />
       </div>
     </header>
