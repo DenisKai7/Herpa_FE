@@ -265,6 +265,15 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
 
       {/* Right: Admin button + User Menu */}
       <div className="flex items-center gap-2">
+        {user?.role === 'pelajar' && (
+          <button
+            onClick={() => router.push('/quiz')}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-extrabold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-sm hover:shadow transition-all cursor-pointer mr-1"
+          >
+            <GraduationCap className="h-4 w-4" />
+            <span>Kuis</span>
+          </button>
+        )}
         {user?.role === 'admin' && (
           <button
             onClick={() => router.push('/admin')}

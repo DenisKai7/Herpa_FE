@@ -7,7 +7,7 @@
 
 export type AiMode = 'tenaga_medis' | 'peneliti' | 'pelajar' | 'umum';
 
-export type UserRole = 'user' | 'admin';
+export type UserRole = 'user' | 'admin' | 'pelajar';
 
 export type MessageRole = 'user' | 'ai';
 

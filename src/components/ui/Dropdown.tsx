@@ -14,7 +14,7 @@ interface DropdownItem {
 interface DropdownProps {
   trigger: React.ReactNode;
   items?: DropdownItem[];
-  children?: React.ReactNode;
+  children?: React.ReactNode | ((close: () => void) => React.ReactNode);
   align?: 'left' | 'right';
   className?: string;
   menuClassName?: string;
