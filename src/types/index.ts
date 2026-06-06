@@ -100,7 +100,33 @@ export interface ChatRequest {
   file_url?: string | null;
   file_name?: string | null;
   file_type?: string | null;
+  model_choice?: string | null;
 }
+
+// --- Model Selection ---
+
+export interface ModelOption {
+  label: string;
+  value: string;
+}
+
+export const MODEL_OPTIONS_BY_MODE: Record<AiMode, ModelOption[]> = {
+  tenaga_medis: [
+    { label: 'Qwen 2.5 7B (Fast Medical)', value: 'Qwen/Qwen2.5-7B-Instruct' },
+    { label: 'Qwen 2.5 14B (Deep Analysis)', value: 'Qwen/Qwen2.5-14B-Instruct' },
+  ],
+  peneliti: [
+    { label: 'Qwen 2.5 7B (Fast Medical)', value: 'Qwen/Qwen2.5-7B-Instruct' },
+    { label: 'Qwen 2.5 14B (Deep Analysis)', value: 'Qwen/Qwen2.5-14B-Instruct' },
+  ],
+  pelajar: [
+    { label: 'Gemma 2 9B (Academic)', value: 'google/gemma-2-9b-it' },
+    { label: 'Gemma 2 27b (Complex Logic)', value: 'google/gemma-2-27b-it' },
+  ],
+  umum: [
+    { label: 'Llama 3.1 8B (Standard)', value: 'meta-llama/Llama-3.1-8B-Instruct' },
+  ],
+};
 
 export interface ChatResponse {
   chat_id: string;

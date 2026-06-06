@@ -7,7 +7,9 @@ import { Send, X, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/hooks/useChatStore';
 import { MultimodalUploader } from './MultimodalUploader';
+import { ModelSelector } from './ModelSelector';
 import type { AiMode } from '@/types';
+import { MODEL_OPTIONS_BY_MODE } from '@/types';
 
 interface UploadedFile {
   file: File;
@@ -29,7 +31,15 @@ export function ChatInput({ aiMode }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  const [selectedModel, setSelectedModel] = useState(
+    () => MODEL_OPTIONS_BY_MODE[aiMode][0].value
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset selected model when aiMode changes
+  useEffect(() => {
+    setSelectedModel(MODEL_OPTIONS_BY_MODE[aiMode][0].value);
+  }, [aiMode]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -72,6 +82,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
       file_url: fileUrl,
       file_name: fileName,
       file_type: fileType,
+      model_choice: selectedModel,
     });
 
     // If this was a new chat and we got a chatId back, navigate to it
@@ -79,7 +90,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
     if (isNewChat && chatId && pathname === '/') {
       router.push(`/?chat=${chatId}`, { scroll: false });
     }
-  }, [message, isSending, uploadedFile, aiMode, fileContext, sendMessage, activeSessionId, pathname, router]);
+  }, [message, isSending, uploadedFile, aiMode, selectedModel, fileContext, sendMessage, activeSessionId, pathname, router]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -158,6 +169,13 @@ export function ChatInput({ aiMode }: ChatInputProps) {
             placeholder="Ask anything about medicine, herbs, or chemistry..."
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none leading-relaxed max-h-40"
+          />
+
+          {/* Model Selector */}
+          <ModelSelector
+            aiMode={aiMode}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
           />
 
           {/* Send Button */}
