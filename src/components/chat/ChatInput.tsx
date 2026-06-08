@@ -3,12 +3,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, FileText } from 'lucide-react';
+import { Send, X, FileText, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/hooks/useChatStore';
+import { filesApi } from '@/lib/api/files';
 import { MultimodalUploader } from './MultimodalUploader';
 import { ModelSelector } from './ModelSelector';
-import type { AiMode } from '@/types';
+import type { AiMode, AttachmentStatus } from '@/types';
 import { MODEL_OPTIONS_BY_MODE } from '@/types';
 
 interface UploadedFile {
@@ -16,13 +18,24 @@ interface UploadedFile {
   preview: string | null;
   extractedText: string | null;
   isUploading: boolean;
+  status: AttachmentStatus;
+  attachmentId?: string;
   fileName: string;
   url?: string;
+  error?: string;
 }
 
 interface ChatInputProps {
   aiMode: AiMode;
 }
+
+const ATTACHMENT_STATUS_LABELS: Record<AttachmentStatus, string> = {
+  uploading: 'Mengunggah...',
+  queued: 'Menunggu pemrosesan...',
+  processing: 'Membaca gambar...',
+  completed: 'Siap digunakan',
+  failed: 'Gagal diproses · Coba lagi',
+};
 
 export function ChatInput({ aiMode }: ChatInputProps) {
   const router = useRouter();
@@ -36,18 +49,57 @@ export function ChatInput({ aiMode }: ChatInputProps) {
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Reset selected model when aiMode changes
   useEffect(() => {
     setSelectedModel(MODEL_OPTIONS_BY_MODE[aiMode][0].value);
   }, [aiMode]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
     }
   }, [message]);
+
+  useEffect(() => {
+    const attachmentId = uploadedFile?.attachmentId;
+    if (!attachmentId || uploadedFile.status === 'completed' || uploadedFile.status === 'failed') {
+      return;
+    }
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const status = await filesApi.getStatus(attachmentId);
+        if (cancelled) return;
+        setUploadedFile((prev) => {
+          if (!prev || prev.attachmentId !== attachmentId) return prev;
+          return {
+            ...prev,
+            status: status.processing_status,
+            isUploading: false,
+            extractedText: status.extracted_text || prev.extractedText,
+            error: status.error?.message,
+          };
+        });
+        if (status.processing_status === 'completed') {
+          setFileContext(status.extracted_text || null);
+        }
+      } catch {
+        if (!cancelled) {
+          setUploadedFile((prev) => prev && prev.attachmentId === attachmentId
+            ? { ...prev, status: 'failed', isUploading: false, error: 'Gagal membaca status OCR.' }
+            : prev);
+        }
+      }
+    };
+
+    poll();
+    const intervalId = window.setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [uploadedFile?.attachmentId, uploadedFile?.status]);
 
   const handleRemoveFile = useCallback(() => {
     if (uploadedFile?.preview) {
@@ -57,36 +109,51 @@ export function ChatInput({ aiMode }: ChatInputProps) {
     setFileContext(null);
   }, [uploadedFile]);
 
+  const handleRetryFile = useCallback(async () => {
+    if (!uploadedFile?.attachmentId) return;
+    try {
+      const status = await filesApi.retry(uploadedFile.attachmentId);
+      setUploadedFile((prev) => prev ? {
+        ...prev,
+        status: status.processing_status,
+        isUploading: false,
+        error: undefined,
+      } : prev);
+      setFileContext(null);
+    } catch {
+      toast.error('Gagal mencoba ulang OCR.');
+    }
+  }, [uploadedFile?.attachmentId]);
+
   const handleSubmit = useCallback(async () => {
     const trimmed = message.trim();
     if (!trimmed || isSending) return;
-    if (uploadedFile?.isUploading) return;
+    if (uploadedFile && uploadedFile.status !== 'completed') {
+      toast.error('Lampiran belum siap. Tunggu OCR selesai atau hapus lampiran.');
+      return;
+    }
 
-    // Track whether this is a new chat (no activeSessionId yet)
     const isNewChat = !activeSessionId;
-
     const fileUrl = uploadedFile?.url || uploadedFile?.preview || null;
     const fileName = uploadedFile?.fileName || null;
     const fileType = uploadedFile?.file.type || null;
+    const attachmentId = uploadedFile?.attachmentId || null;
 
-    // Clear input immediately (optimistic)
     setMessage('');
     setFileContext(null);
     setUploadedFile(null);
 
-    // sendMessage returns the resolved chatId (or null on error)
     const chatId = await sendMessage({
       message: trimmed,
       ai_mode: aiMode,
-      file_context: fileContext,
+      file_context: attachmentId ? null : fileContext,
       file_url: fileUrl,
       file_name: fileName,
       file_type: fileType,
+      attachment_id: attachmentId,
       model_choice: selectedModel,
     });
 
-    // If this was a new chat and we got a chatId back, navigate to it
-    // so the URL reflects the active session
     if (isNewChat && chatId && pathname === '/') {
       router.push(`/?chat=${chatId}`, { scroll: false });
     }
@@ -99,12 +166,12 @@ export function ChatInput({ aiMode }: ChatInputProps) {
     }
   };
 
-  const canSend = message.trim().length > 0 && !isSending && !uploadedFile?.isUploading;
+  const attachmentReady = !uploadedFile || uploadedFile.status === 'completed';
+  const canSend = message.trim().length > 0 && !isSending && attachmentReady;
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 pb-4">
       <div className="relative bg-slate-50 border border-slate-200 dark:bg-[#1e293b] dark:border-slate-800 rounded-2xl shadow-lg transition-shadow focus-within:shadow-xl focus-within:border-slate-350 dark:focus-within:border-slate-700">
-        {/* File Preview Area (appears above input) */}
         <AnimatePresence>
           {uploadedFile && (
             <motion.div
@@ -114,8 +181,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
               className="overflow-hidden"
             >
               <div className="px-4 pt-3 flex border-b border-gray-150 dark:border-gray-800">
-                <div className="relative bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 rounded-xl p-2 flex items-center gap-2 mb-3 max-w-[280px] group">
-                  {/* Thumbnail / Icon */}
+                <div className="relative bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 rounded-xl p-2 flex items-center gap-2 mb-3 max-w-[340px] group">
                   {uploadedFile.preview ? (
                     <img
                       src={uploadedFile.preview}
@@ -127,19 +193,32 @@ export function ChatInput({ aiMode }: ChatInputProps) {
                       <FileText className="h-5 w-5 text-blue-500" />
                     </div>
                   )}
-                  {/* File Info */}
-                  <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex-1 min-w-0 pr-10">
                     <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
                       {uploadedFile.fileName}
                     </p>
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                      {uploadedFile.isUploading ? 'Uploading...' : 'Ready'}
+                    <p className={cn(
+                      'text-[10px]',
+                      uploadedFile.status === 'failed' ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'
+                    )}>
+                      {ATTACHMENT_STATUS_LABELS[uploadedFile.status]}
                     </p>
                   </div>
-                  {/* Close Button */}
+                  {uploadedFile.status === 'failed' && uploadedFile.attachmentId && (
+                    <button
+                      type="button"
+                      onClick={handleRetryFile}
+                      className="p-1 rounded-full text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer"
+                      title="Coba lagi"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
+                    type="button"
                     onClick={handleRemoveFile}
                     className="absolute -top-1.5 -right-1.5 p-1 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
+                    title="Hapus attachment"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -149,9 +228,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
           )}
         </AnimatePresence>
 
-        {/* Input Row */}
         <div className="flex items-end gap-2 p-3">
-          {/* File Upload */}
           <div className="relative shrink-0 self-end pb-0.5">
             <MultimodalUploader
               onFileReady={(text) => setFileContext(text)}
@@ -160,7 +237,6 @@ export function ChatInput({ aiMode }: ChatInputProps) {
             />
           </div>
 
-          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={message}
@@ -171,14 +247,12 @@ export function ChatInput({ aiMode }: ChatInputProps) {
             className="flex-1 resize-none bg-transparent text-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none leading-relaxed max-h-40"
           />
 
-          {/* Model Selector */}
           <ModelSelector
             aiMode={aiMode}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
           />
 
-          {/* Send Button */}
           <button
             onClick={handleSubmit}
             disabled={!canSend}

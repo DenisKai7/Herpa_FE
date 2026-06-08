@@ -1,17 +1,21 @@
-// ============================================================
-// Medical AI Platform — TypeScript Types & Interfaces
-// Aligned with FastAPI Pydantic schemas
-// ============================================================
+// --- User & Auth ---
 
-// --- Enums ---
-
+export type UserRole = 'admin' | 'user';
 export type AiMode = 'tenaga_medis' | 'peneliti' | 'pelajar' | 'umum';
-
-export type UserRole = 'user' | 'admin' | 'pelajar';
-
 export type MessageRole = 'user' | 'ai';
 
-// --- Auth ---
+export interface User {
+  id: string;
+  email: string;
+  username?: string;
+  nama?: string;
+  full_name?: string;
+  role: UserRole;
+  instansi?: string;
+  provinsi?: string;
+  kota?: string;
+  created_at: string;
+}
 
 export interface LoginRequest {
   email: string;
@@ -33,33 +37,32 @@ export interface AuthResponse {
   user: User;
 }
 
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  full_name: string;
-  role: UserRole;
-  instansi: string;
-  provinsi: string;
-  kota: string;
-  created_at: string;
-}
-
-export interface UpdateProfileRequest {
-  username?: string;
-  full_name?: string;
-  email?: string;
-  instansi?: string;
-  provinsi?: string;
-  kota?: string;
-}
-
-export interface ChangePasswordRequest {
-  old_password: string;
-  new_password: string;
-}
-
 // --- Chat ---
+
+export interface QuizOptionSchema {
+  label: string;
+  text: string;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: QuizOptionSchema[];
+  correct_answer?: string;
+  explanation?: string;
+}
+
+export interface QuizData {
+  title?: string;
+  topic?: string;
+  difficulty?: string;
+  questions?: QuizQuestion[];
+  daftar_soal?: QuizQuestion[];
+  analisis_performa?: {
+    sorotan?: string[];
+    area_fokus?: string[];
+  };
+  [key: string]: unknown;
+}
 
 export interface ChatSession {
   id: string;
@@ -68,6 +71,11 @@ export interface ChatSession {
   is_public: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface SharedChatData {
+  title: string;
+  messages: ChatMessage[];
 }
 
 export interface ChatMessage {
@@ -100,6 +108,7 @@ export interface ChatRequest {
   file_url?: string | null;
   file_name?: string | null;
   file_type?: string | null;
+  attachment_id?: string | null;
   model_choice?: string | null;
 }
 
@@ -129,44 +138,7 @@ export const MODEL_OPTIONS_BY_MODE: Record<AiMode, ModelOption[]> = {
   ],
 };
 
-export interface ChatResponse {
-  chat_id: string;
-  intent: string;
-  response: string;
-  quiz_data: QuizData | null;
-}
-
-export interface RenameChatRequest {
-  title: string;
-}
-
-export interface ShareChatResponse {
-  message: string;
-  is_public: boolean;
-  public_url: string | null;
-}
-
-export interface SharedChatData {
-  title: string;
-  created_at: string;
-  messages: ChatMessage[];
-}
-
 // --- Quiz ---
-
-export interface QuizData {
-  questions: QuizQuestion[];
-  topic: string;
-  difficulty: string;
-}
-
-export interface QuizQuestion {
-  id: number;
-  question: string;
-  options: QuizOption[];
-  correct_answer: string;
-  explanation: string;
-}
 
 export interface QuizOption {
   label: string;
@@ -175,12 +147,48 @@ export interface QuizOption {
 
 // --- File Upload ---
 
+export type AttachmentStatus = 'uploading' | 'queued' | 'processing' | 'completed' | 'failed';
+
+export interface AttachmentInfo {
+  id: string;
+  filename: string;
+  stored_filename?: string;
+  mime_type?: string;
+  preview_url?: string | null;
+  processing_status: AttachmentStatus;
+  detected_type?: string;
+  verification_status?: string;
+  confidence?: number;
+}
+
 export interface FileUploadResponse {
-  file_id: string;
+  file_id?: string;
   filename: string;
   extracted_text: string;
-  content_type: string;
+  content_type?: string;
   url?: string;
+  success?: boolean;
+  attachment?: AttachmentInfo;
+  context?: {
+    extracted_text?: string;
+    summary?: string;
+    warnings?: string[];
+  };
+}
+
+export interface AttachmentStatusResponse {
+  attachment_id: string;
+  processing_status: AttachmentStatus;
+  progress: number;
+  verification_status: string;
+  confidence: number;
+  extracted_text?: string;
+  detected_type?: string;
+  retryable?: boolean;
+  error?: {
+    code: string;
+    message: string;
+  };
 }
 
 // --- Admin ---

@@ -5,20 +5,24 @@ import { Paperclip } from 'lucide-react';
 import { filesApi } from '@/lib/api/files';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import type { AttachmentStatus } from '@/types';
 
 interface UploadedFile {
   file: File;
   preview: string | null;
   extractedText: string | null;
   isUploading: boolean;
+  status: AttachmentStatus;
+  attachmentId?: string;
   fileName: string;
   url?: string;
+  error?: string;
 }
 
 interface MultimodalUploaderProps {
   onFileReady: (extractedText: string) => void;
   uploadedFile: UploadedFile | null;
-  setUploadedFile: (file: UploadedFile | null) => void;
+  setUploadedFile: (file: UploadedFile | null | ((prev: UploadedFile | null) => UploadedFile | null)) => void;
 }
 
 const ACCEPTED_TYPES = [
@@ -50,7 +54,6 @@ export function MultimodalUploader({
       return;
     }
 
-    // Create preview
     const preview = file.type.startsWith('image/')
       ? URL.createObjectURL(file)
       : null;
@@ -60,26 +63,30 @@ export function MultimodalUploader({
       preview,
       extractedText: null,
       isUploading: true,
+      status: 'uploading',
       fileName: file.name,
     });
 
     try {
       const response = await filesApi.upload(file);
+      const attachment = response.attachment;
       setUploadedFile({
         file,
         preview,
-        extractedText: response.extracted_text,
+        extractedText: response.extracted_text || null,
         isUploading: false,
+        status: attachment?.processing_status || 'queued',
+        attachmentId: attachment?.id,
         fileName: file.name,
-        url: response.url || `/api/files/download/${response.file_id}`,
+        url: attachment?.preview_url || response.url || (response.file_id ? `/api/files/download/${response.file_id}` : undefined),
       });
-      onFileReady(response.extracted_text);
+      if (response.extracted_text) {
+        onFileReady(response.extracted_text);
+      }
     } catch {
-      setUploadedFile(null);
-      // Error toast handled by interceptor
+      setUploadedFile((prev) => prev ? { ...prev, isUploading: false, status: 'failed', error: 'Upload gagal.' } : null);
     }
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -87,7 +94,6 @@ export function MultimodalUploader({
 
   return (
     <div>
-      {/* Upload Button */}
       <input
         ref={fileInputRef}
         type="file"
