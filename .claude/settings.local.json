@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx create-next-app@latest *)",
-      "Bash(bun add *)"
+      "Bash(bun add *)",
+      "PowerShell(python test_neo.py)"
     ]
   }
 }

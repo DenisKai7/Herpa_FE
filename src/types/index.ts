@@ -112,19 +112,20 @@ export interface ModelOption {
 
 export const MODEL_OPTIONS_BY_MODE: Record<AiMode, ModelOption[]> = {
   tenaga_medis: [
-    { label: 'Qwen 2.5 7B (Fast Medical)', value: 'Qwen/Qwen2.5-7B-Instruct' },
-    { label: 'Qwen 2.5 14B (Deep Analysis)', value: 'Qwen/Qwen2.5-14B-Instruct' },
+    { label: 'Fast Medium', value: 'fast' },
+    { label: 'Thinking High', value: 'thinking' },
   ],
   peneliti: [
-    { label: 'Qwen 2.5 7B (Fast Medical)', value: 'Qwen/Qwen2.5-7B-Instruct' },
-    { label: 'Qwen 2.5 14B (Deep Analysis)', value: 'Qwen/Qwen2.5-14B-Instruct' },
+    { label: 'Fast Medium', value: 'fast' },
+    { label: 'Thinking High', value: 'thinking' },
   ],
   pelajar: [
-    { label: 'Gemma 2 9B (Academic)', value: 'google/gemma-2-9b-it' },
-    { label: 'Gemma 2 27b (Complex Logic)', value: 'google/gemma-2-27b-it' },
+    { label: 'Fast Medium', value: 'fast' },
+    { label: 'Thinking High', value: 'thinking' },
   ],
   umum: [
-    { label: 'Llama 3.1 8B (Standard)', value: 'meta-llama/Llama-3.1-8B-Instruct' },
+    { label: 'Fast Medium', value: 'fast' },
+    { label: 'Thinking High', value: 'thinking' },
   ],
 };
 
