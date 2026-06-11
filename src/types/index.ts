@@ -221,3 +221,39 @@ export interface ApiError {
   detail: string;
   status_code: number;
 }
+
+// --- Profile ---
+
+export interface UpdateProfileRequest {
+  username?: string;
+  full_name?: string;
+  email?: string;
+  nama?: string;
+  instansi?: string;
+  provinsi?: string;
+  kota?: string;
+}
+
+export interface ChangePasswordRequest {
+  old_password: string;
+  new_password: string;
+}
+
+// --- Chat API ---
+
+export interface ChatResponse {
+  chat_id: string;
+  response: string;
+  quiz_data?: QuizData | null;
+  message?: ChatMessage;
+}
+
+export interface RenameChatRequest {
+  title: string;
+}
+
+export interface ShareChatResponse {
+  share_id: string;
+  is_public: boolean;
+  public_url?: string;
+}

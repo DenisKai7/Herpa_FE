@@ -1,259 +1,211 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Search,
   Activity,
-  BookOpen,
   AlertTriangle,
-  FileText,
-  HelpCircle,
-  Sparkles,
   Info,
-  ChevronRight,
+  Sparkles,
   ShieldCheck,
-  CheckCircle,
-  X
+  X,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  analyzeHerbalComplaint,
+  HerbalCandidate,
+  HerbalRecommendationApiError,
+  HerbalRecommendationResponse,
+  RecommendationStatus,
+  VerificationSource,
+  FieldVerification,
+} from '@/lib/api/herbalRecommendation';
 
-// ─── Herbal Database ──────────────────────────────────────────────
-interface HerbalPlant {
-  name: string;
-  latinName: string;
-  icon: string;
-  description: string;
-  pengolahan: string[];
-  aturanPakai: string[];
-  peringatan: string;
+const emptyText = 'Informasi ini tidak ditampilkan karena belum lolos verifikasi.';
+
+type DetailTab = 'pengolahan' | 'aturan' | 'peringatan' | 'sumber';
+
+const statusText: Record<RecommendationStatus, string> = {
+  idle: 'Menunggu input keluhan.',
+  validating: 'Memvalidasi keluhan...',
+  analyzing_symptoms: 'MODEL_THINKING mengekstrak gejala...',
+  searching_graph: 'Mencari kandidat di Neo4j...',
+  checking_safety: 'Memeriksa kontraindikasi dan red flag...',
+  ranking: 'Meranking kandidat herbal...',
+  completed: 'Rekomendasi selesai.',
+  clarification_required: 'Butuh klarifikasi keluhan.',
+  medical_attention_recommended: 'Tanda kewaspadaan terdeteksi.',
+  no_safe_candidate: 'Tidak ada kandidat aman dari knowledge graph.',
+  no_fully_verified_candidate: 'Belum ada kandidat dengan provenance lengkap.',
+  failed: 'Rekomendasi gagal diproses.',
+};
+
+function plantIcon(candidate: HerbalCandidate) {
+  const name = candidate.local_name.toLowerCase();
+  if (name.includes('jahe')) return '🫚';
+  if (name.includes('kunyit') || name.includes('temu')) return '🟨';
+  if (name.includes('jeruk')) return '🍋';
+  if (name.includes('daun')) return '🍃';
+  return '🌿';
 }
 
-interface HerbalRecommendation {
-  symptomKey: string;
-  title: string;
-  plants: HerbalPlant[];
+function scorePercent(score: number) {
+  return `${Math.round(score * 100)}%`;
 }
 
-const HERBAL_DATABASE: HerbalRecommendation[] = [
-  {
-    symptomKey: 'batuk',
-    title: 'Batuk Berdahak & Tenggorokan Gatal',
-    plants: [
-      {
-        name: 'Jahe Merah',
-        latinName: 'Zingiber officinale var. rubrum',
-        icon: '🫚',
-        description: 'Jahe merah mengandung minyak atsiri tinggi dan gingerol yang berkhasiat sebagai antiinflamasi dan ekspektoran alami untuk mengencerkan dahak.',
-        pengolahan: [
-          'Cuci bersih 2 rimpang jahe merah, lalu memarkan (geprek).',
-          'Rebus dengan 2 gelas air bersih (sekitar 400ml) selama 10-15 menit hingga mendidih.',
-          'Saring air rebusan ke dalam cangkir dan biarkan hangat.',
-          'Tambahkan 1 sendok makan madu murni sebelum diminum.'
-        ],
-        aturanPakai: [
-          'Minum 2 kali sehari pagi dan malam sebelum tidur.',
-          'Dosis maksimal 3 cangkir per hari.',
-          'Disarankan diminum setelah makan untuk menghindari iritasi lambung.'
-        ],
-        peringatan: 'Hindari konsumsi jahe merah secara berlebihan (lebih dari 4 gram per hari) bagi penderita maag akut atau gangguan perdarahan karena jahe dapat memperlambat pembekuan darah.'
-      },
-      {
-        name: 'Kencur',
-        latinName: 'Kaempferia galanga',
-        icon: '🌱',
-        description: 'Kencur memiliki efek hangat yang meringankan kejang tenggorokan, mengurangi lendir, dan meredakan rasa gatal pada saluran pernapasan.',
-        pengolahan: [
-          'Kupas dan cuci bersih 3 ruas kencur segar.',
-          'Parut kencur hingga halus, kemudian peras airnya.',
-          'Campurkan air perasan kencur dengan sedikit garam dapur (seujung sendok teh).',
-          'Aduk rata dan siap diminum langsung.'
-        ],
-        aturanPakai: [
-          'Minum air perasan kencur 1 sendok makan sebanyak 3 kali sehari.',
-          'Untuk anak-anak di atas 5 tahun, cukup 1/2 dosis dewasa.'
-        ],
-        peringatan: 'Meskipun sangat aman, konsumsi jus kencur mentah sebaiknya dibatasi bagi individu dengan refluks asam lambung tinggi (GERD) karena dapat memicu rasa hangat berlebih di ulu hati.'
-      },
-      {
-        name: 'Jeruk Nipis',
-        latinName: 'Citrus aurantiifolia',
-        icon: '🍋',
-        description: 'Jeruk nipis kaya akan vitamin C dan asam sitrat yang berfungsi sebagai agen antibakteri alami serta membantu melunakkan dahak.',
-        pengolahan: [
-          'Belah 1 buah jeruk nipis segar menjadi dua bagian.',
-          'Peras air jeruk nipis ke dalam gelas.',
-          'Campurkan air perasan jeruk nipis dengan 1-2 sendok makan kecap manis atau madu murni.',
-          'Seduh dengan sedikit air hangat suam-suam kuku.'
-        ],
-        aturanPakai: [
-          'Konsumsi campuran jeruk nipis dan madu/kecap 3 kali sehari masing-masing 1 sendok makan.',
-          'Diminum sebelum makan untuk efek ekspektoran optimal.'
-        ],
-        peringatan: 'Karena keasaman asam sitrat yang sangat tinggi, penderita sakit maag (gastritis) wajib mengencerkannya dengan air hangat yang cukup dan tidak mengonsumsinya saat perut kosong.'
-      }
-    ]
-  },
-  {
-    symptomKey: 'demam',
-    title: 'Demam & Tubuh Hangat',
-    plants: [
-      {
-        name: 'Sambiloto',
-        latinName: 'Andrographis paniculata',
-        icon: '🌿',
-        description: 'Sambiloto merupakan tanaman obat pahit legendaris yang mengandung andrografolida, berperan kuat sebagai antipiretik (penurun panas) dan imunostimulan.',
-        pengolahan: [
-          'Ambil 10-15 lembar daun sambiloto segar, cuci bersih.',
-          'Rebus daun dengan 3 gelas air hingga tersisa sekitar 1 gelas.',
-          'Saring air rebusan dan biarkan dingin.',
-          'Karena rasanya sangat pahit, bisa dicampurkan sedikit madu.'
-        ],
-        aturanPakai: [
-          'Minum 1/2 gelas rebusan sambiloto, 2 kali sehari setelah makan.',
-          'Hentikan penggunaan apabila demam telah turun kembali normal.'
-        ],
-        peringatan: 'Daun sambiloto tidak boleh dikonsumsi oleh wanita hamil karena memiliki efek abortifacient (berisiko memicu kontraksi rahim/keguguran) serta pasien yang mengonsumsi obat pengencer darah.'
-      },
-      {
-        name: 'Temulawak',
-        latinName: 'Curcuma zanthorrhiza',
-        icon: '🍠',
-        description: 'Temulawak memiliki kandungan kurkuminoid yang membantu meredakan inflamasi sistemik dan menurunkan suhu tubuh secara bertahap saat demam.',
-        pengolahan: [
-          'Iris tipis 1 rimpang temulawak segar yang sudah dibersihkan.',
-          'Rebus dengan 3 gelas air bersama 1 ruas asam jawa.',
-          'Biarkan mendidih hingga air menyusut menjadi setengahnya.',
-          'Saring air rebusan lalu tambahkan gula aren secukupnya.'
-        ],
-        aturanPakai: [
-          'Minum 1 cangkir hangat rebusan temulawak 2 kali sehari secara rutin.',
-          'Aman diminum sebelum atau setelah makan.'
-        ],
-        peringatan: 'Penderita gangguan kantung empedu atau batu empedu disarankan untuk berkonsultasi dengan dokter sebelum mengonsumsi temulawak karena temulawak menstimulasi sekresi empedu.'
-      }
-    ]
-  },
-  {
-    symptomKey: 'lambung',
-    title: 'Sakit Maag, Asam Lambung & Kembung',
-    plants: [
-      {
-        name: 'Kunyit',
-        latinName: 'Curcuma longa',
-        icon: '🟨',
-        description: 'Kurkumin dalam kunyit menstimulasi pembentukan dinding mukosa lambung, mengurangi sekresi asam lambung, dan mempercepat penyembuhan luka lambung.',
-        pengolahan: [
-          'Kupas 2 ruas kunyit segar, cuci bersih lalu parut.',
-          'Tambahkan 1/2 cangkir air matang hangat, lalu peras airnya menggunakan kain bersih.',
-          'Biarkan mengendap beberapa menit, ambil air kunyit bagian atas.',
-          'Campurkan 1 sendok teh madu.'
-        ],
-        aturanPakai: [
-          'Minum air kunyit pagi hari sebelum makan atau saat perut kosong.',
-          'Konsumsi secara rutin selama 1-2 minggu untuk hasil optimal.'
-        ],
-        peringatan: 'Wanita hamil dan penderita batu ginjal sebaiknya membatasi konsumsi kunyit karena kurkumin dosis tinggi dapat memicu kontraksi uterus atau memengaruhi absorpsi zat besi.'
-      },
-      {
-        name: 'Daun Mint',
-        latinName: 'Mentha piperita',
-        icon: '🍃',
-        description: 'Mentol dalam daun mint memberikan efek relaksasi pada otot lambung dan saluran pencernaan, membantu meredakan kembung dan mual.',
-        pengolahan: [
-          'Seduh 5-8 lembar daun mint segar dengan 1 cangkir air panas.',
-          'Tutup cangkir dan biarkan terendam selama 5-10 menit.',
-          'Saring teh mint hangat dan siap dinikmati.'
-        ],
-        aturanPakai: [
-          'Minum 1 cangkir teh mint hangat setelah makan atau saat lambung terasa tidak nyaman.',
-          'Dosis maksimal 3 cangkir sehari.'
-        ],
-        peringatan: 'Hindari daun mint bagi penderita GERD parah karena mentol dapat melemaskan sfingter esofagus bawah, yang justru berisiko memicu naiknya asam lambung ke kerongkongan.'
-      }
-    ]
+function normalizeScientificName(value: string | null) {
+  const authorSuffixes = new Set(['l', 'linn', 'linnaeus', 'roxb', 'roscoe', 'willd', 'nees', 'kunth', 'griff']);
+  const parts = (value ?? '').toLowerCase().replace(/[.,()]/g, ' ').split(/\s+/).filter(Boolean);
+  while (parts.length > 2 && authorSuffixes.has(parts[parts.length - 1])) parts.pop();
+  return parts.join(' ');
+}
+
+function candidateKey(candidate: HerbalCandidate) {
+  return candidate.canonical_key || normalizeScientificName(candidate.scientific_name) || candidate.herb_id || candidate.local_name.toLowerCase();
+}
+
+function uniqueCandidates(candidates: HerbalCandidate[]) {
+  const map = new Map<string, HerbalCandidate>();
+  for (const candidate of candidates) {
+    const key = candidateKey(candidate);
+    if (map.has(key) && process.env.NODE_ENV === 'development') {
+      console.warn('[HerbalRecommendation] Duplicate candidate received', key);
+    }
+    if (!map.has(key)) map.set(key, candidate);
   }
-];
+  return Array.from(map.values()).sort((a, b) => b.recommendation_score - a.recommendation_score || (a.scientific_name || a.local_name).localeCompare(b.scientific_name || b.local_name));
+}
+
+function formatEvidenceLevel(value: string) {
+  const labels: Record<string, string> = {
+    traditional: 'Penggunaan tradisional',
+    phytochemical_screening: 'Skrining fitokimia',
+    in_vitro: 'Bukti in-vitro',
+    in_vivo: 'Bukti in-vivo',
+    clinical: 'Bukti klinis',
+    systematic_review: 'Tinjauan sistematis',
+    data_not_available: 'Data bukti belum tersedia',
+    insufficient_evidence: 'Bukti masih terbatas',
+  };
+  return labels[value] ?? 'Data bukti belum tersedia';
+}
+
+function getVerificationSourceFromCandidate(candidate: HerbalCandidate): VerificationSource {
+  if (candidate.overall_verification_status === 'fully_graph_verified') return 'graph_verified';
+  if (candidate.overall_verification_status === 'graph_and_model_verified') return 'graph_model_verified';
+  if (candidate.overall_verification_status === 'model_assisted_limited') return 'model_assisted';
+  return 'unavailable';
+}
+
+function renderVerificationBadge(source: VerificationSource) {
+  const styles = {
+    graph_verified: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800/40',
+    graph_model_verified: 'bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/40',
+    model_assisted: 'bg-yellow-100 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/40',
+    unavailable: 'bg-gray-100 dark:bg-gray-950/40 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-800/40',
+  };
+  const labels = {
+    graph_verified: 'Terverifikasi Knowledge Graph',
+    graph_model_verified: 'Knowledge Graph + Validasi AI',
+    model_assisted: 'Panduan umum berbantuan AI',
+    unavailable: 'Data belum dapat dipastikan',
+  };
+  return (
+    <span className={cn('text-[9px] font-black px-2 py-1 rounded-full', styles[source])}>
+      {labels[source]}
+    </span>
+  );
+}
+
+function formatSafetyStatus(value: string) {
+  const labels: Record<string, string> = {
+    safe: 'Aman digunakan',
+    conditional: 'Perhatian khusus',
+    unsafe: 'Tidak aman',
+  };
+  return labels[value] ?? 'Status keamanan belum diketahui';
+}
+
+function formatAvailabilityLabel(candidate: HerbalCandidate) {
+  const fv = candidate.field_verifications?.find(f => f.field_name === 'availability');
+  if (fv) {
+    if (fv.verification_source === 'graph_verified') {
+      return 'Ketersediaan terverifikasi Knowledge Graph';
+    }
+    if (fv.verification_source === 'model_assisted') {
+      return 'Perkiraan ketersediaan berbantuan AI';
+    }
+  }
+  if (candidate.availability === 'unknown') {
+    return 'Ketersediaan belum dapat dipastikan';
+  }
+  return candidate.availability_label || 'Ketersediaan belum dapat dipastikan';
+}
 
 export default function HerbalRecommendationPage() {
   const router = useRouter();
   const [complaint, setComplaint] = useState('');
-  const [activeRecommendation, setActiveRecommendation] = useState<HerbalRecommendation | null>(null);
-  const [isSearched, setIsSearched] = useState(false);
-  const [selectedPlant, setSelectedPlant] = useState<HerbalPlant | null>(null);
-  const [activeTab, setActiveTab] = useState<'pengolahan' | 'aturan' | 'efek'>('pengolahan');
+  const [response, setResponse] = useState<HerbalRecommendationResponse | null>(null);
+  const [status, setStatus] = useState<RecommendationStatus>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [selectedPlant, setSelectedPlant] = useState<HerbalCandidate | null>(null);
+  const [activeTab, setActiveTab] = useState<DetailTab>('pengolahan');
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!complaint.trim()) return;
+  const recommendations = uniqueCandidates(response?.recommendations ?? []);
+  const isLoading = ['validating', 'analyzing_symptoms', 'searching_graph', 'checking_safety', 'ranking'].includes(status);
 
-    const query = complaint.toLowerCase();
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmed = complaint.trim();
+    if (!trimmed || isLoading) return;
 
-    // Simple key match in database
-    const match = HERBAL_DATABASE.find(item =>
-      query.includes(item.symptomKey) ||
-      item.symptomKey.split('-').some(word => query.includes(word))
-    );
+    setError(null);
+    setResponse(null);
+    setSelectedPlant(null);
 
-    if (match) {
-      setActiveRecommendation(match);
-    } else {
-      // General fallback if no direct match
-      setActiveRecommendation({
-        symptomKey: 'umum',
-        title: `Rekomendasi untuk "${complaint}"`,
-        plants: [
-          {
-            name: 'Jahe Merah',
-            latinName: 'Zingiber officinale var. rubrum',
-            icon: '🫚',
-            description: 'Jahe merah berkhasiat sebagai penghangat tubuh alami, meningkatkan imunitas, meredakan inflamasi ringan, dan melancarkan sirkulasi darah.',
-            pengolahan: [
-              'Memarkan 2 rimpang jahe merah segar.',
-              'Rebus dengan 2 gelas air selama 10 menit.',
-              'Saring dan nikmati dengan tambahan madu.'
-            ],
-            aturanPakai: [
-              'Minum 1-2 cangkir sehari.',
-              'Lebih disukai dikonsumsi sesudah makan.'
-            ],
-            peringatan: 'Gunakan dosis wajar. Jangan dikonsumsi berlebihan apabila memiliki riwayat maag akut.'
-          },
-          {
-            name: 'Kunyit',
-            latinName: 'Curcuma longa',
-            icon: '🟨',
-            description: 'Kunyit mengandung zat kurkuminoid aktif yang berperan sebagai antioksidan kuat, penenang lambung, serta pemelihara kesehatan pencernaan.',
-            pengolahan: [
-              'Parut kunyit segar lalu peras airnya.',
-              'Campurkan perasan kunyit dengan sedikit madu dan air hangat.'
-            ],
-            aturanPakai: [
-              'Konsumsi 1 kali sehari di pagi hari.',
-              'Sebaiknya dikonsumsi secara konsisten.'
-            ],
-            peringatan: 'Batasi penggunaan bagi ibu hamil dan penderita batu empedu.'
-          }
-        ]
+    try {
+      setStatus('validating');
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      setStatus('analyzing_symptoms');
+      const result = await analyzeHerbalComplaint({
+        complaint: trimmed,
+        age_group: 'unknown',
+        pregnancy_status: 'unknown',
+        allergies: [],
+        chronic_conditions: [],
+        current_medications: [],
       });
+      setStatus('searching_graph');
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      setStatus('checking_safety');
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      setStatus('ranking');
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      setResponse(result);
+      setStatus(result.status === 'completed' ? 'completed' : result.status);
+    } catch (caught) {
+      const message = caught instanceof HerbalRecommendationApiError
+        ? `${caught.code}: ${caught.message}`
+        : 'Rekomendasi gagal diproses.';
+      setError(message);
+      setStatus('failed');
     }
-
-    setIsSearched(true);
   };
 
   const resetSearch = () => {
     setComplaint('');
-    setActiveRecommendation(null);
-    setIsSearched(false);
+    setResponse(null);
+    setError(null);
+    setStatus('idle');
     setSelectedPlant(null);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-950 dark:text-gray-50 flex flex-col relative overflow-hidden">
-
-      {/* Top Header bar */}
       <header className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-40 shrink-0">
         <div className="flex items-center gap-3">
           <button
@@ -271,18 +223,16 @@ export default function HerbalRecommendationPage() {
         </div>
         <button
           onClick={resetSearch}
-          disabled={!isSearched}
+          disabled={!response && !error && !complaint}
           className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-30 disabled:no-underline cursor-pointer disabled:cursor-not-allowed"
         >
           Cari Ulang
         </button>
       </header>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col items-center justify-center max-w-4xl w-full mx-auto px-6 py-8 relative">
+      <div className="flex-1 flex flex-col items-center justify-center max-w-5xl w-full mx-auto px-6 py-8 relative">
         <AnimatePresence mode="wait">
-          {!isSearched ? (
-            /* Symptom Input Screen Layout */
+          {!response && !isLoading && !error ? (
             <motion.div
               key="input-screen"
               initial={{ opacity: 0, y: 15 }}
@@ -297,7 +247,7 @@ export default function HerbalRecommendationPage() {
                 </div>
                 <h2 className="text-xl md:text-2xl font-black">Apa Keluhan Kesehatan Anda?</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                  Tulis keluhan atau gejala fisik yang Anda alami di bawah. Kami akan menyarankan ramuan herbal penunjang berdasarkan tanaman obat tradisional.
+                  Tulis keluhan ringan yang ingin dicari dukungan herbalnya. Sistem akan memakai backend, MODEL_THINKING, Neo4j, dan safety validation.
                 </p>
               </div>
 
@@ -307,39 +257,39 @@ export default function HerbalRecommendationPage() {
                     rows={4}
                     value={complaint}
                     onChange={(e) => setComplaint(e.target.value)}
-                    placeholder="Contoh: batuk berdahak dan tenggorokan gatal, atau asam lambung naik..."
+                    placeholder="Contoh: batuk berdahak dan tenggorokan gatal..."
                     className="w-full p-4 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 transition-all placeholder:text-gray-400 leading-relaxed shadow-sm resize-none"
                     required
+                    minLength={3}
+                    maxLength={1000}
                   />
                   <div className="absolute right-3 bottom-3 text-xs text-gray-400 font-medium">
-                    Mendukung Bahasa Indonesia
+                    {complaint.length}/1000
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-2xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-md shadow-green-500/10 flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isLoading}
+                  className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-2xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-md shadow-green-500/10 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Search className="h-4 w-4" />
                   Analisis Gejala & Cari Ramuan
                 </button>
               </form>
 
-              {/* Quick suggestions chips */}
               <div className="space-y-3 pt-2">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Keluhan Populer</span>
                 <div className="flex flex-wrap gap-2.5">
                   {[
-                    { label: 'Batuk Berdahak', text: 'batuk berdahak dan tenggorokan gatal' },
-                    { label: 'Asam Lambung / Maag', text: 'sakit maag dan asam lambung naik' },
-                    { label: 'Demam & Panas', text: 'badan hangat dan demam' }
+                    { label: 'Batuk Berdahak', text: 'batuk berdahak dan tenggorokan gatal selama dua hari' },
+                    { label: 'Asam Lambung / Maag', text: 'perut terasa perih ringan dan kembung setelah makan' },
+                    { label: 'Mual Ringan', text: 'mual ringan tanpa muntah darah atau nyeri dada' },
                   ].map((chip) => (
                     <button
                       key={chip.label}
                       type="button"
-                      onClick={() => {
-                        setComplaint(chip.text);
-                      }}
+                      onClick={() => setComplaint(chip.text)}
                       className="text-xs font-semibold px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-green-400 dark:hover:border-green-800 rounded-full transition-colors cursor-pointer"
                     >
                       {chip.label}
@@ -349,286 +299,356 @@ export default function HerbalRecommendationPage() {
               </div>
             </motion.div>
           ) : (
-            /* NotebookLM-Style Mindmap Canvas Renderer */
             <motion.div
-              key="mindmap-screen"
+              key="result-screen"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3 }}
-              className="w-full flex flex-col items-center justify-center space-y-12 py-6 min-h-[450px]"
+              className="w-full flex flex-col items-center justify-center space-y-8 py-6 min-h-[450px]"
             >
-              <div className="text-center space-y-1 max-w-md">
+              <div className="text-center space-y-2 max-w-2xl">
                 <span className="text-[10px] font-bold tracking-widest text-green-600 dark:text-green-400 uppercase">
                   Peta Koneksi Ramuan Herbal
                 </span>
-                <h3 className="text-lg font-bold truncate leading-tight">
-                  {activeRecommendation?.title}
+                <h3 className="text-lg font-bold leading-tight" title={response?.normalized_complaint || complaint}>
+                  KELUHAN UTAMA: {response?.normalized_complaint || complaint}
                 </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{statusText[status]}</p>
+                {Boolean(response?.metadata?.request_id) && (
+                  <p className="text-[10px] text-gray-400">Request ID: {String(response?.metadata.request_id)}</p>
+                )}
               </div>
 
-              {/* Mindmap canvas representation */}
-              <div className="relative w-full max-w-xl h-64 md:h-80 flex items-center justify-center">
-                {/* Connecting SVG lines */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-                  {activeRecommendation?.plants.map((_, idx) => {
-                    const total = activeRecommendation.plants.length;
+              {isLoading && (
+                <div className="flex items-center gap-3 rounded-2xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 px-5 py-4 text-sm text-green-700 dark:text-green-300">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  {statusText[status]}
+                </div>
+              )}
 
-                    // Angles calculation for layout positioning
-                    let angle = 0;
-                    if (total === 1) angle = 0;
-                    else if (total === 2) angle = idx === 0 ? -45 : 45;
-                    else angle = (360 / total) * idx - 90;
+              {error && (
+                <div className="max-w-xl rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-5 text-sm text-red-700 dark:text-red-300">
+                  <div className="font-black uppercase text-xs mb-1">Error</div>
+                  {error}
+                </div>
+              )}
 
-                    const rad = (angle * Math.PI) / 180;
+              {response?.status === 'clarification_required' && (
+                <div className="max-w-xl rounded-2xl border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-5">
+                  <h4 className="text-sm font-black text-yellow-800 dark:text-yellow-300 mb-3">Keluhan perlu diperjelas</h4>
+                  <ul className="space-y-2 text-sm text-yellow-800 dark:text-yellow-200 list-disc pl-5">
+                    {response.clarification_questions.map((question) => <li key={question}>{question}</li>)}
+                  </ul>
+                </div>
+              )}
 
-                    // Radial coordinates
-                    const r = 120; // Radius
-                    const x2 = 50 + (r * Math.cos(rad)) / 3; // percentage x
-                    const y2 = 50 + (r * Math.sin(rad)) / 2; // percentage y
+              {response?.status === 'medical_attention_recommended' && (
+                <div className="max-w-xl rounded-2xl border-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-5 flex gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-black text-red-800 dark:text-red-300 mb-2">Pemeriksaan medis disarankan</h4>
+                    <p className="text-sm text-red-700 dark:text-red-200 leading-relaxed">{response.medical_attention_message}</p>
+                  </div>
+                </div>
+              )}
 
-                    return (
-                      <line
-                        key={idx}
-                        x1="50%"
-                        y1="50%"
-                        x2={`${x2}%`}
-                        y2={`${y2}%`}
-                        stroke="#22c55e"
-                        strokeWidth="2.5"
-                        strokeDasharray="5,5"
-                        className="opacity-40"
-                      />
-                    );
-                  })}
-                </svg>
+              {response && recommendations.length > 0 && (
+                <div className="w-full space-y-8">
+                  <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                    Ditemukan {recommendations.length} kandidat tanaman yang memenuhi kriteria saat ini.
+                  </p>
+                  {recommendations.every((item) => item.safety_status === 'conditional') && (
+                    <div className="mx-auto max-w-2xl rounded-2xl border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200">
+                      Pilihan dengan perhatian khusus. Data keamanan atau aturan pakai belum lengkap, sehingga kandidat tidak ditandai aman penuh.
+                    </div>
+                  )}
+                  <div className={cn(
+                    'mx-auto grid gap-4',
+                    recommendations.length === 1 ? 'max-w-sm grid-cols-1 place-items-center' :
+                      recommendations.length <= 3 ? 'max-w-4xl grid-cols-1 sm:grid-cols-3' :
+                        recommendations.length <= 6 ? 'max-w-5xl grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' :
+                          'max-w-5xl grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-h-[520px] overflow-y-auto pr-2'
+                  )}>
+                    {recommendations.map((plant, idx) => {
+                      const verifSource = getVerificationSourceFromCandidate(plant);
+                      return (
+                        <motion.button
+                          key={candidateKey(plant)}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          whileHover={{ scale: 1.02 }}
+                          onClick={() => {
+                            setActiveTab('pengolahan');
+                            setSelectedPlant(plant);
+                          }}
+                          className="bg-white dark:bg-gray-900 border-2 border-green-500 rounded-2xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer text-left select-none flex flex-col justify-between h-full"
+                        >
+                          <div>
+                            <div className="flex items-start gap-3">
+                              <span className="text-3xl">{plantIcon(plant)}</span>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">{plant.local_name}</h4>
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500 italic truncate mt-0.5">{plant.scientific_name || emptyText}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {renderVerificationBadge(verifSource)}
+                              <span className="text-[9px] font-black px-2 py-1 rounded-full bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300">
+                                {formatAvailabilityLabel(plant)}
+                              </span>
+                              <span className="text-[9px] font-black px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
+                                {formatEvidenceLevel(plant.evidence_level)}
+                              </span>
+                              {plant.safety_status === 'conditional' && (
+                                <span className="text-[9px] font-black px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300">
+                                  {formatSafetyStatus(plant.safety_status)}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 line-clamp-3">
+                              {plant.explanation || 'Penjelasan belum tersedia dari backend.'}
+                            </p>
+                          </div>
+                          <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800/60 flex items-center justify-between">
+                            <p className="text-[10px] text-gray-400">Score {scorePercent(plant.recommendation_score)}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Detail →</p>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
 
-                {/* Central core node */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                  className="z-10 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-full w-24 h-24 md:w-28 md:h-28 flex flex-col items-center justify-center text-center p-3 shadow-lg shadow-green-500/20 relative"
-                >
-                  <Activity className="h-5 w-5 text-green-100 mb-1" />
-                  <span className="text-[10px] font-black uppercase leading-tight tracking-wider">Gejala Utama</span>
-                  <span className="text-[11px] font-bold truncate max-w-full leading-tight mt-0.5">
-                    {activeRecommendation?.symptomKey}
-                  </span>
-                </motion.div>
+                  <div className="mx-auto max-w-3xl text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 px-4 py-3 rounded-2xl flex items-start gap-2 font-medium">
+                    <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                    <span>{response.general_disclaimer}</span>
+                  </div>
+                </div>
+              )}
 
-                {/* Peripheral nodes */}
-                {activeRecommendation?.plants.map((plant, idx) => {
-                  const total = activeRecommendation.plants.length;
-
-                  // Same radial angles calculations
-                  let angle = 0;
-                  if (total === 1) angle = 0;
-                  else if (total === 2) angle = idx === 0 ? -45 : 45;
-                  else angle = (360 / total) * idx - 90;
-
-                  const rad = (angle * Math.PI) / 180;
-                  const r = 120; // Radius in pixels
-                  const translateX = r * Math.cos(rad);
-                  const translateY = r * Math.sin(rad);
-
-                  return (
-                    <motion.div
-                      key={plant.name}
-                      initial={{ scale: 0, x: 0, y: 0 }}
-                      animate={{ scale: 1, x: translateX, y: translateY }}
-                      transition={{ type: 'spring', stiffness: 180, damping: 12, delay: 0.1 }}
-                      whileHover={{ scale: 1.05 }}
-                      onClick={() => setSelectedPlant(plant)}
-                      className={cn(
-                        'absolute z-10 bg-white dark:bg-gray-900 border-2 border-green-500 rounded-2xl p-3 shadow-md hover:shadow-lg transition-all cursor-pointer w-28 md:w-36 text-center select-none'
-                      )}
-                    >
-                      <span className="text-2xl block mb-1">{plant.icon}</span>
-                      <h4 className="font-bold text-xs md:text-sm text-gray-800 dark:text-gray-100 truncate">
-                        {plant.name}
-                      </h4>
-                      <p className="text-[9px] text-gray-400 dark:text-gray-500 italic truncate mt-0.5">
-                        {plant.latinName}
-                      </p>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              <div className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 px-4 py-2.5 rounded-full inline-flex items-center gap-1.5 font-medium">
-                <Info className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                <span>Klik salah satu <strong>tanaman herbal</strong> di atas untuk melihat panduan detail ilmiah.</span>
-              </div>
+              {(response?.status === 'no_safe_candidate' || response?.status === 'no_fully_verified_candidate') && (
+                <div className="max-w-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 text-sm text-gray-600 dark:text-gray-300 space-y-4">
+                  <p>
+                    Belum tersedia rekomendasi dengan data penggunaan dan keamanan yang sepenuhnya terverifikasi untuk keluhan ini.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={resetSearch} className="px-3 py-2 rounded-xl bg-green-600 text-white text-xs font-bold">Cari ulang</button>
+                    <button onClick={() => setResponse(null)} className="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold">Ubah keluhan</button>
+                    <button onClick={() => router.push('/')} className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold">Lihat informasi umum non-rekomendasi</button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Dynamic Context Panel Drawer (On-Click Event) */}
       <AnimatePresence>
-        {selectedPlant && (
-          <div className="fixed inset-0 z-50 flex justify-end">
+        {selectedPlant && (() => {
+          const prepFv = selectedPlant.field_verifications?.find(f => f.field_name === 'preparation_method');
+          const isPrepGraph = prepFv?.verification_source === 'graph_verified';
+          const isPrepModel = prepFv?.verification_source === 'model_assisted';
 
-            {/* Backdrop cover overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedPlant(null)}
-              className="absolute inset-0 bg-black"
-            />
+          const usageFv = selectedPlant.field_verifications?.find(f => f.field_name === 'usage_rule');
+          const isUsageModel = usageFv?.verification_source === 'model_assisted';
 
-            {/* Slide-over Drawer block */}
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="relative w-full max-w-md h-full bg-white dark:bg-gray-900 shadow-2xl flex flex-col justify-between border-l border-gray-200 dark:border-gray-800 z-10"
-            >
-              {/* Header drawer info */}
-              <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{selectedPlant.icon}</span>
-                  <div>
-                    <h3 className="font-bold text-base text-gray-900 dark:text-gray-50 leading-tight">
-                      {selectedPlant.name}
-                    </h3>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5">
-                      {selectedPlant.latinName}
-                    </p>
+          return (
+            <div className="fixed inset-0 z-50 flex justify-end">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedPlant(null)}
+                className="absolute inset-0 bg-black"
+              />
+
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+                className="relative w-full max-w-md h-full bg-white dark:bg-gray-900 shadow-2xl flex flex-col justify-between border-l border-gray-200 dark:border-gray-800 z-10"
+              >
+                <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-3xl">{plantIcon(selectedPlant)}</span>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-base text-gray-900 dark:text-gray-50 leading-tight truncate">{selectedPlant.local_name}</h3>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5 truncate">{selectedPlant.scientific_name || emptyText}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {renderVerificationBadge(getVerificationSourceFromCandidate(selectedPlant))}
+                        <span className="text-[9px] font-black px-2 py-1 rounded-full bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300">
+                          {formatAvailabilityLabel(selectedPlant)}
+                        </span>
+                        <span className="text-[9px] font-black px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">{formatEvidenceLevel(selectedPlant.evidence_level)}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <button
-                  onClick={() => setSelectedPlant(null)}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Scrollable contents info */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-
-                {/* Description */}
-                <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-normal">
-                  {selectedPlant.description}
-                </p>
-
-                {/* Tab selector bar */}
-                <div className="flex border-b border-gray-100 dark:border-gray-800 gap-4 text-xs font-bold uppercase tracking-wider">
                   <button
-                    onClick={() => setActiveTab('pengolahan')}
-                    className={cn(
-                      'pb-2.5 transition-colors cursor-pointer border-b-2',
-                      activeTab === 'pengolahan'
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-400 hover:text-gray-600'
-                    )}
+                    onClick={() => setSelectedPlant(null)}
+                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
                   >
-                    Cara Pengolahan
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('aturan')}
-                    className={cn(
-                      'pb-2.5 transition-colors cursor-pointer border-b-2',
-                      activeTab === 'aturan'
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-400 hover:text-gray-600'
-                    )}
-                  >
-                    Aturan Pakai
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('efek')}
-                    className={cn(
-                      'pb-2.5 transition-colors cursor-pointer border-b-2',
-                      activeTab === 'efek'
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-400 hover:text-gray-600'
-                    )}
-                  >
-                    Peringatan
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
 
-                {/* Tab layout details */}
-                <div className="space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                    <p>{selectedPlant.explanation || emptyText}</p>
+                    <div>
+                      <span className="font-black text-gray-500 uppercase tracking-wider">Gejala cocok: </span>
+                      {selectedPlant.matched_symptoms.length ? selectedPlant.matched_symptoms.join(', ') : emptyText}
+                    </div>
+                    <div>
+                      <span className="font-black text-gray-500 uppercase tracking-wider">Penggunaan tradisional: </span>
+                      {selectedPlant.traditional_uses.length ? selectedPlant.traditional_uses.join(', ') : emptyText}
+                    </div>
+                  </div>
+
+                  <div className="flex border-b border-gray-100 dark:border-gray-800 gap-4 text-xs font-bold uppercase tracking-wider">
+                    {[
+                      ['pengolahan', 'Cara Pengolahan'],
+                      ['aturan', 'Aturan Pakai'],
+                      ['peringatan', 'Peringatan'],
+                      ['sumber', 'Sumber'],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setActiveTab(key as DetailTab)}
+                        className={cn(
+                          'pb-2.5 transition-colors cursor-pointer border-b-2',
+                          activeTab === key ? 'border-green-500 text-green-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
                   {activeTab === 'pengolahan' && (
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">
-                        Cara Pengolahan Rumahan
-                      </h4>
-                      <ol className="space-y-2.5">
-                        {selectedPlant.pengolahan.map((step, idx) => (
-                          <li key={idx} className="flex gap-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                            <span className="w-5 h-5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 font-bold flex items-center justify-center shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span>{step}</span>
-                          </li>
-                        ))}
-                      </ol>
+                    <div className="space-y-4">
+                      {prepFv && (
+                        <div className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs">
+                          <p className="font-bold text-gray-800 dark:text-gray-200">
+                            Sumber: {isPrepGraph ? 'Terverifikasi Knowledge Graph' : 'Panduan umum berbantuan AI'}
+                          </p>
+                          <p className="text-gray-500 dark:text-gray-400 mt-0.5">
+                            Status: {isPrepGraph ? 'Terverifikasi Knowledge Graph' : 'Belum terverifikasi Knowledge Graph'}
+                          </p>
+                          {isPrepModel && (
+                            <p className="text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                              Panduan umum pengolahan berbantuan AI. Takaran dan metode spesifik belum terverifikasi Knowledge Graph.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {selectedPlant.preparation_methods.length ? selectedPlant.preparation_methods.map((method) => (
+                        <div key={method.method_id} className="space-y-3">
+                          <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">{method.title}</h4>
+                          <p className="text-xs text-gray-500">Bagian tanaman: {method.plant_part || emptyText}</p>
+                          <p className="text-xs text-gray-500">Bahan: {method.ingredients.length ? method.ingredients.join(', ') : 'Takaran terstandar belum tersedia pada database.'}</p>
+                          <ol className="space-y-2.5">
+                            {(method.steps.length ? method.steps : [emptyText]).map((step, idx) => (
+                              <li key={`${method.method_id}-${idx}`} className="flex gap-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                                <span className="w-5 h-5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                                <span>{step}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )) : null}
                     </div>
                   )}
 
                   {activeTab === 'aturan' && (
                     <div className="space-y-3">
-                      <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">
-                        Aturan Konsumsi Aman
-                      </h4>
-                      <div className="space-y-2">
-                        {selectedPlant.aturanPakai.map((rule, idx) => (
-                          <div key={idx} className="flex gap-2.5 items-start bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
-                            <ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                            <span className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-medium">
-                              {rule}
-                            </span>
-                          </div>
-                        ))}
+                      {isUsageModel && (
+                        <div className="text-xs text-yellow-800 dark:text-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-xl border border-yellow-100 dark:border-yellow-900/40 font-medium">
+                          Dosis khusus tidak tersedia dari knowledge graph. Gunakan produk terstandar sesuai label atau konsultasikan dengan farmasis.
+                        </div>
+                      )}
+                      <div className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs">
+                        <p className="font-bold text-gray-800 dark:text-gray-200">
+                          Sumber: {isUsageModel ? 'Panduan umum berbantuan AI' : 'Terverifikasi Knowledge Graph'}
+                        </p>
+                        <p className="text-gray-500 dark:text-gray-400 mt-0.5">
+                          Status: {isUsageModel ? 'Belum terverifikasi Knowledge Graph' : 'Terverifikasi Knowledge Graph'}
+                        </p>
                       </div>
+                      {selectedPlant.usage_rules.length ? selectedPlant.usage_rules.map((rule, idx) => (
+                        <div key={idx} className="space-y-2 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300">
+                          <div className="flex gap-2.5 items-start"><ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /><span>Bentuk: {rule.form || emptyText}</span></div>
+                          <p>Jumlah: {rule.amount_text}</p>
+                          <p>Frekuensi: {rule.frequency_text}</p>
+                          <p>Durasi: {rule.duration_text || emptyText}</p>
+                          <p>Catatan: {rule.administration_notes.length ? rule.administration_notes.join(', ') : emptyText}</p>
+                        </div>
+                      )) : null}
                     </div>
                   )}
 
-                  {activeTab === 'efek' && (
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">
-                        Kontraindikasi & Bahaya
-                      </h4>
-                      {/* CRITICAL Safety alert red/amber banner box */}
+                  {activeTab === 'peringatan' && (
+                    <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300">
+                      {selectedPlant.general_safety_warnings?.length > 0 && (
+                        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-4 rounded-2xl space-y-2">
+                          <span className="text-xs font-black text-amber-800 dark:text-amber-400 block uppercase tracking-wide">Peringatan umum keselamatan</span>
+                          <p className="whitespace-pre-line leading-relaxed text-amber-700 dark:text-amber-300">{selectedPlant.general_safety_warnings[0]}</p>
+                        </div>
+                      )}
                       <div className="bg-red-50 dark:bg-red-950/20 border-2 border-red-200 dark:border-red-900/50 p-4 rounded-2xl flex items-start gap-3">
                         <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-xs font-black text-red-800 dark:text-red-400 block mb-1 uppercase tracking-wide">
-                            Peringatan Keamanan Medis
-                          </span>
-                          <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed font-semibold">
-                            {selectedPlant.peringatan}
-                          </p>
+                        <div className="space-y-2">
+                          <span className="text-xs font-black text-red-800 dark:text-red-400 block uppercase tracking-wide">Peringatan Keamanan Medis</span>
+                          <p>Peringatan: {selectedPlant.warnings.length ? selectedPlant.warnings.join(' ') : emptyText}</p>
+                          <p>Kontraindikasi: {selectedPlant.contraindications.length ? selectedPlant.contraindications.join(', ') : emptyText}</p>
+                          <p>Interaksi: {selectedPlant.interactions.length ? selectedPlant.interactions.join(', ') : emptyText}</p>
+                          <p>Kelompok berisiko: {selectedPlant.risk_groups.length ? selectedPlant.risk_groups.join(', ') : emptyText}</p>
+                          <p>Efek samping: {selectedPlant.side_effects.length ? selectedPlant.side_effects.join(', ') : emptyText}</p>
                         </div>
                       </div>
                     </div>
                   )}
+
+                  {activeTab === 'sumber' && (
+                    <div className="space-y-4 text-xs">
+                      <div className="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-2">
+                        <h4 className="font-bold text-gray-800 dark:text-gray-200">Metadata Verifikasi Dual</h4>
+                        <p>Graph Coverage Score: <span className="font-mono">{selectedPlant.graph_coverage_score}</span></p>
+                        <p>Model Assisted Coverage Score: <span className="font-mono">{selectedPlant.model_assisted_coverage_score}</span></p>
+                        <p>Status Data Keamanan: <span className="font-mono capitalize">{selectedPlant.safety_data_status}</span></p>
+                        <p>Metodologi: <span className="italic">model-assisted validation</span></p>
+                      </div>
+
+                      {selectedPlant.provenance?.source_ids?.length ? (
+                        <div className="space-y-3">
+                          <h4 className="font-extrabold uppercase text-gray-400 tracking-wider">Referensi Graph</h4>
+                          {selectedPlant.provenance.source_ids.map((sourceId, i) => (
+                            <div key={i} className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800">
+                              <p className="font-bold text-gray-800 dark:text-gray-200">{sourceId}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-400 italic">Tidak ada literatur spesifik yang tercatat di graph.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-              </div>
-
-              {/* Bottom footer button */}
-              <div className="p-6 border-t border-gray-100 dark:border-gray-800">
-                <button
-                  onClick={() => setSelectedPlant(null)}
-                  className="w-full py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
-                >
-                  Tutup Panduan
-                </button>
-              </div>
-
-            </motion.div>
-          </div>
-        )}
+                <div className="p-6 border-t border-gray-100 dark:border-gray-800">
+                  <button
+                    onClick={() => setSelectedPlant(null)}
+                    className="w-full py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Tutup Panduan
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
-
     </div>
   );
 }

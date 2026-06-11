@@ -30,7 +30,13 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const detail = error.response?.data?.detail || 'An unexpected error occurred';
+    const rawDetail = error.response?.data?.detail;
+    const detail: string =
+      typeof rawDetail === 'string'
+        ? rawDetail
+        : rawDetail && typeof rawDetail === 'object' && typeof rawDetail.message === 'string'
+          ? rawDetail.message
+          : 'An unexpected error occurred';
 
     switch (status) {
       case 401:
