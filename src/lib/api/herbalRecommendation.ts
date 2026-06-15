@@ -8,17 +8,57 @@ export type RecommendationStatus =
   | 'checking_safety'
   | 'ranking'
   | 'completed'
+  | 'completed_with_partial_enrichment'
+  | 'completed_with_model_fallback'
   | 'clarification_required'
   | 'medical_attention_recommended'
   | 'no_safe_candidate'
   | 'no_fully_verified_candidate'
+  | 'graph_unavailable'
   | 'failed';
 
 export type VerificationSource =
-  | 'graph_verified'
-  | 'graph_model_verified'
+  | 'knowledge_graph'
+  | 'trusted_source'
+  | 'graph_and_model'
   | 'model_assisted'
-  | 'unavailable';
+  | 'safety_rule'
+  | 'unavailable'
+  // Legacy compat
+  | 'graph_verified'
+  | 'graph_model_verified';
+
+export interface FieldEvidence {
+  verification_source: VerificationSource;
+  verification_status: 'verified' | 'assisted' | 'limited' | 'unavailable' | 'conflicting';
+  source_ids: string[];
+  graph_node_ids: string[];
+  confidence: number | null;
+  verified_at: string | null;
+  warnings: string[];
+}
+
+export interface EvidenceSource {
+  source_id: string;
+  title: string;
+  publisher: string | null;
+  year: number | null;
+  source_type: string;
+  evidence_grade: 'A' | 'B' | 'C' | 'D';
+  identifier: string | null;
+  url: string | null;
+  active: boolean;
+  verified_at: string | null;
+  supported_fields: string[];
+}
+
+export interface CandidateScores {
+  relevance: number;
+  graph_coverage: number;
+  trusted_source_coverage: number;
+  model_assisted_coverage: number;
+  safety_coverage: number;
+}
 
 export interface FieldVerification {
   field_name: string;
@@ -31,6 +71,46 @@ export interface FieldVerification {
   model_critic_passed: boolean;
   safety_critical: boolean;
   warnings: string[];
+  evidence: FieldEvidence | null;
+}
+
+export interface SafetyItem {
+  safety_id: string;
+  title: string;
+  description: string;
+  severity: string;
+  action_text: string;
+  source_ids: string[];
+  id: string | null;
+  label: string;
+}
+
+export interface VerifiedSafetyField {
+  status: 'known_issue' | 'no_known_issue_within_source_scope' | 'missing' | 'conflicting';
+  items: SafetyItem[];
+  source_ids: string[];
+  verified_at: string | null;
+}
+
+export interface SafetySection {
+  contraindications: VerifiedSafetyField;
+  interactions: VerifiedSafetyField;
+  side_effects: VerifiedSafetyField;
+  risk_groups: VerifiedSafetyField;
+  general_safety_warnings: string[];
+  stop_use_signs: string[];
+  medical_attention_signs: string[];
+}
+
+export interface SourceProvenanceItem {
+  source_id: string;
+  title: string;
+  publisher: string | null;
+  year: number | null;
+  evidence_grade: string | null;
+  url: string | null;
+  verified_at: string | null;
+  active: boolean;
 }
 
 export interface HerbalRecommendationRequest {
@@ -42,41 +122,78 @@ export interface HerbalRecommendationRequest {
   current_medications?: string[];
 }
 
+export interface IngredientItem {
+  name: string;
+  amount_text: string | null;
+  source_ids: string[];
+}
+
 export interface PreparationMethod {
   method_id: string;
   title: string;
   plant_part: string | null;
-  ingredients: string[];
+  dosage_form: string;
+  ingredients: IngredientItem[];
   steps: string[];
+  water_volume_text: string | null;
+  temperature_text: string | null;
+  preparation_duration_text: string | null;
+  storage_instruction: string | null;
+  discard_instruction: string | null;
+  suitable_symptoms: string[];
   preparation_type: string;
   source: string | null;
   evidence_level: string;
+  verification_status: string;
+  source_ids: string[];
   compatible_symptoms: string[];
   contraindicated_groups: string[];
+  evidence: FieldEvidence | null;
 }
 
 export interface UsageRule {
+  usage_rule_id: string;
   form: string | null;
   amount_text: string | null;
   frequency_text: string | null;
+  administration_time_text: string | null;
   duration_text: string | null;
   maximum_duration_text: string | null;
+  before_or_after_meal: string | null;
   administration_notes: string[];
-  applicable_age_groups: string[];
+  allowed_age_groups: string[];
   prohibited_age_groups: string[];
+  applicable_age_groups: string[];
   source: string | null;
   evidence_level: string;
+  verification_status: string;
+  source_ids: string[];
+  evidence: FieldEvidence | null;
 }
 
 export interface GraphProvenance {
   graph_verified: boolean;
   coverage_score: number;
   source_ids: string[];
+  sources: SourceProvenanceItem[];
   evidence_claim_ids: string[];
   graph_node_ids: string[];
   graph_relationship_ids: string[];
   verified_at: string | null;
   data_version: string;
+}
+
+export interface AvailabilityInfo {
+  category: string;
+  label: string;
+  reason: string;
+  source_ids: string[];
+}
+
+export interface EvidenceInfo {
+  level: string;
+  label: string;
+  source_ids: string[];
 }
 
 export interface HerbalCandidate {
@@ -88,6 +205,12 @@ export interface HerbalCandidate {
   aliases: string[];
   matched_symptoms: string[];
   unmatched_symptoms: string[];
+  matched_uses: string[];
+  symptom_coverage: number;
+  relevance_status: 'exact_match' | 'partial_match' | 'low_relevance';
+  recommendation_reason: string;
+  plant_parts: string[];
+  active_compounds: string[];
   traditional_uses: string[];
   supported_activities: string[];
   evidence_level: string;
@@ -97,7 +220,9 @@ export interface HerbalCandidate {
   interactions: string[];
   side_effects: string[];
   risk_groups: string[];
-  warnings: string[];
+  warnings: SafetyItem[];
+  stop_use_signs: string[];
+  medical_attention_signs: string[];
   availability: 'easy_to_find' | 'moderately_available' | 'hard_to_find' | 'seasonal' | 'restricted' | 'unknown';
   availability_label: string;
   availability_reason: string | null;
@@ -108,13 +233,29 @@ export interface HerbalCandidate {
   usage_status?: 'available' | 'insufficient_data';
   graph_verified?: boolean;
   provenance_valid?: boolean;
+  has_conflicting_claims?: boolean;
   provenance?: GraphProvenance | null;
+  availability_info?: AvailabilityInfo | null;
+  evidence?: EvidenceInfo | null;
+
+  // Structured safety
+  contraindication_status: VerifiedSafetyField;
+  interaction_status: VerifiedSafetyField;
+  side_effect_status: VerifiedSafetyField;
+  risk_group_status: VerifiedSafetyField;
+  safety: SafetySection | null;
+  sources: EvidenceSource[];
 
   // Dual verification fields
   field_verifications: FieldVerification[];
   graph_coverage_score: number;
+  trusted_source_coverage_score: number;
   model_assisted_coverage_score: number;
+  safety_coverage_score: number;
+  scores: CandidateScores;
   overall_verification_status:
+    | 'fully_verified'
+    | 'source_verified'
     | 'fully_graph_verified'
     | 'graph_and_model_verified'
     | 'model_assisted_limited'
@@ -125,7 +266,7 @@ export interface HerbalCandidate {
 
 export interface HerbalRecommendationResponse {
   recommendation_id: string;
-  status: 'completed' | 'clarification_required' | 'medical_attention_recommended' | 'no_safe_candidate' | 'no_fully_verified_candidate' | 'failed';
+  status: 'completed' | 'completed_with_partial_enrichment' | 'clarification_required' | 'medical_attention_recommended' | 'no_safe_candidate' | 'no_fully_verified_candidate' | 'graph_unavailable' | 'failed';
   complaint: string;
   normalized_complaint: string;
   extracted_symptoms: string[];
