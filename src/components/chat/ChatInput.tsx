@@ -40,7 +40,7 @@ const ATTACHMENT_STATUS_LABELS: Record<AttachmentStatus, string> = {
 export function ChatInput({ aiMode }: ChatInputProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { sendMessage, isSending, activeSessionId } = useChatStore();
+  const { sendMessage, cancelSending, isSending, activeSessionId } = useChatStore();
   const [message, setMessage] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
@@ -253,20 +253,39 @@ export function ChatInput({ aiMode }: ChatInputProps) {
             onModelChange={setSelectedModel}
           />
 
-          <button
-            onClick={handleSubmit}
-            disabled={!canSend}
-            className={cn(
-              'shrink-0 p-2.5 rounded-xl transition-all duration-200 cursor-pointer',
-              canSend
-                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
-            )}
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          {isSending ? (
+            <button
+              type="button"
+              onClick={cancelSending}
+              className="shrink-0 p-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 shadow-sm transition-all duration-200 cursor-pointer animate-pulse"
+              title="Batalkan pengiriman"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSend}
+              className={cn(
+                'shrink-0 p-2.5 rounded-xl transition-all duration-200 cursor-pointer',
+                canSend
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+              )}
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
+
+      {isSending && (
+        <div className="flex items-center justify-center gap-2 text-xs text-blue-600 dark:text-blue-400 mt-2">
+          <RefreshCw className="h-3 w-3 animate-spin" />
+          <span>MedBot AI sedang menganalisis kueri Anda...</span>
+        </div>
+      )}
 
       <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 mt-2">
         MedBot AI can make mistakes. Verify important medical information with professionals.

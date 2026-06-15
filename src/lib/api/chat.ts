@@ -26,8 +26,8 @@ export const chatApi = {
     return response.data.messages;
   },
 
-  sendMessage: async (chatId: string | null, data: ChatRequest): Promise<ChatResponse> => {
-    const response = await apiClient.post<ChatResponse>('/api/chat/message', data);
+  sendMessage: async (chatId: string | null, data: ChatRequest, config?: object): Promise<ChatResponse> => {
+    const response = await apiClient.post<ChatResponse>('/api/chat/message', data, config);
     return response.data;
   },
 

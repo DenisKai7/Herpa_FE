@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ChatSession, ChatMessage, ChatRequest } from '@/types';
 import { chatApi } from '@/lib/api/chat';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 
 interface ChatState {
   sessions: ChatSession[];
@@ -10,6 +11,7 @@ interface ChatState {
   isLoadingSessions: boolean;
   isLoadingMessages: boolean;
   isSending: boolean;
+  abortController: AbortController | null;
 
   // Session actions
   fetchSessions: () => Promise<void>;
@@ -22,6 +24,7 @@ interface ChatState {
 
   // Message actions
   sendMessage: (data: ChatRequest) => Promise<string | null>;
+  cancelSending: () => void;
   clearMessages: () => void;
 }
 
@@ -32,6 +35,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingSessions: false,
   isLoadingMessages: false,
   isSending: false,
+  abortController: null,
 
   fetchSessions: async () => {
     set({ isLoadingSessions: true });
@@ -126,6 +130,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (data: ChatRequest) => {
     const { activeSessionId } = get();
 
+    // Generate unique request_id for idempotency
+    const requestId = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : `req-${Math.random().toString(36).substring(2, 15)}`;
+
     // Optimistic: add user message immediately
     const tempChatId = activeSessionId || `temp-${Date.now()}`;
     const userMsg: ChatMessage = {
@@ -146,15 +155,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       file_type: data.file_type || null,
     };
 
+    const controller = new AbortController();
+
     set((state) => ({
       messages: [...state.messages, userMsg],
       isSending: true,
+      abortController: controller,
     }));
 
     try {
-      // Pass chat_id in the request body (backend expects it there)
-      const requestWithChatId = { ...data, chat_id: activeSessionId };
-      const response = await chatApi.sendMessage(activeSessionId, requestWithChatId);
+      // Pass chat_id and request_id in the request body
+      const requestWithChatIdAndRequestId = { 
+        ...data, 
+        chat_id: activeSessionId,
+        request_id: requestId
+      };
+      const response = await chatApi.sendMessage(
+        activeSessionId, 
+        requestWithChatIdAndRequestId,
+        { signal: controller.signal }
+      );
 
       // If this was a new chat, the backend returns the new chat_id
       const newChatId = response.chat_id || activeSessionId;
@@ -178,13 +198,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         messages: [...state.messages, assistantMsg],
         isSending: false,
+        abortController: null,
       }));
 
       // Return the chat_id so the caller can handle routing
       return newChatId || null;
-    } catch {
-      set({ isSending: false });
+    } catch (error: any) {
+      if (error?.name === 'CanceledError' || error?.message === 'canceled' || axios.isCancel(error)) {
+        toast.error('Pengiriman pesan dibatalkan.');
+      }
+      set({ isSending: false, abortController: null });
       return null;
+    }
+  },
+
+  cancelSending: () => {
+    const { abortController } = get();
+    if (abortController) {
+      abortController.abort();
+      set({ isSending: false, abortController: null });
     }
   },
 
