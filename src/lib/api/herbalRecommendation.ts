@@ -53,7 +53,14 @@ export interface EvidenceSource {
 }
 
 export interface CandidateScores {
-  relevance: number;
+  confidence?: number;
+  relevance?: number;
+  relevance_score?: number;
+  symptom_match_score?: number;
+  evidence_score?: number;
+  compound_score?: number;
+  safety_score?: number;
+  alias_match_score?: number;
   graph_coverage: number;
   trusted_source_coverage: number;
   model_assisted_coverage: number;
@@ -201,38 +208,53 @@ export interface EvidenceInfo {
 }
 
 export interface HerbalCandidate {
+  plant_id?: string;
   herb_id: string;
   canonical_key: string;
-  source_herb_ids: string[];
+  source_herb_ids?: string[];
   local_name: string;
   scientific_name: string | null;
-  aliases: string[];
-  matched_symptoms: string[];
-  unmatched_symptoms: string[];
-  matched_uses: string[];
+  aliases?: string[];
+  matched_symptoms?: string[];
+  unmatched_symptoms?: string[];
+  matched_uses?: string[];
   symptom_coverage: number;
-  relevance_status: 'exact_match' | 'partial_match' | 'low_relevance';
+  relevance_score?: number;
+  confidence?: number;
+  relevance_level?: 'high' | 'medium' | 'low' | 'unknown';
+  relevance_label?: string;
+  relevance_status: 'exact_match' | 'partial_match' | 'low_relevance' | 'unknown';
   recommendation_reason: string;
-  plant_parts: string[];
+  reason?: string;
+  match_reasons?: string[];
+  related_symptoms?: string[];
+  plant_parts?: string[];
   active_compounds: string[];
-  traditional_uses: string[];
-  supported_activities: string[];
+  traditional_uses?: string[];
+  supported_activities?: string[];
   evidence_level: string;
-  preparation_methods: PreparationMethod[];
-  usage_rules: UsageRule[];
+  evidence_status?: 'available' | 'limited' | 'unavailable' | 'unknown';
+  evidence_label?: string;
+  evidence_sources?: Array<Record<string, unknown>>;
+  preparation_methods?: PreparationMethod[];
+  usage_rules?: UsageRule[];
   contraindications: string[];
-  interactions: string[];
+  interactions?: string[];
+  drug_interactions?: string[];
   side_effects: string[];
-  risk_groups: string[];
-  warnings: SafetyItem[];
-  stop_use_signs: string[];
-  medical_attention_signs: string[];
-  availability: 'easy_to_find' | 'moderately_available' | 'hard_to_find' | 'seasonal' | 'restricted' | 'unknown';
-  availability_label: string;
-  availability_reason: string | null;
+  risk_groups?: string[];
+  warnings: Array<SafetyItem | string>;
+  limitations?: string[];
+  safety_notes?: string[];
+  stop_use_signs?: string[];
+  medical_attention_signs?: string[];
+  availability?: 'easy_to_find' | 'moderately_available' | 'hard_to_find' | 'seasonal' | 'restricted' | 'unknown';
+  availability_label?: string;
+  availability_reason?: string | null;
   recommendation_score: number;
-  safety_status: 'eligible' | 'conditional' | 'excluded';
-  safety_reasons: string[];
+  safety_status: 'safe' | 'caution' | 'unsafe' | 'unknown' | 'eligible' | 'conditional' | 'excluded';
+  safety_label?: string;
+  safety_reasons?: string[];
   explanation?: string | null;
   usage_status?: 'available' | 'insufficient_data';
   graph_verified?: boolean;
@@ -243,15 +265,15 @@ export interface HerbalCandidate {
   evidence?: EvidenceInfo | null;
 
   // Structured safety
-  contraindication_status: VerifiedSafetyField;
-  interaction_status: VerifiedSafetyField;
-  side_effect_status: VerifiedSafetyField;
-  risk_group_status: VerifiedSafetyField;
-  safety: SafetySection | null;
+  contraindication_status?: VerifiedSafetyField;
+  interaction_status?: VerifiedSafetyField;
+  side_effect_status?: VerifiedSafetyField;
+  risk_group_status?: VerifiedSafetyField;
+  safety?: SafetySection | null;
   sources: EvidenceSource[];
 
   // Dual verification fields
-  field_verifications: FieldVerification[];
+  field_verifications?: FieldVerification[];
   graph_coverage_score: number;
   trusted_source_coverage_score: number;
   model_assisted_coverage_score: number;
@@ -269,19 +291,26 @@ export interface HerbalCandidate {
 }
 
 export interface HerbalRecommendationResponse {
-  recommendation_id: string;
+  recommendation_id?: string;
+  request_id?: string | null;
   status: 'completed' | 'completed_with_partial_enrichment' | 'clarification_required' | 'medical_attention_recommended' | 'no_safe_candidate' | 'no_fully_verified_candidate' | 'graph_unavailable' | 'failed';
   complaint: string;
   normalized_complaint: string;
+  symptoms?: string[];
   extracted_symptoms: string[];
   clarification_questions: string[];
   red_flags: string[];
+  when_to_seek_medical_help?: string[];
   total_candidates_found: number;
   total_candidates_eligible: number;
   total_candidates_excluded: number;
   recommendations: HerbalCandidate[];
+  options?: HerbalCandidate[];
   excluded_candidates: Array<Record<string, unknown>>;
   general_disclaimer: string;
+  safety_note?: string;
+  warnings?: string[];
+  limitations?: string[];
   medical_attention_message: string | null;
   metadata: Record<string, unknown>;
 }
@@ -344,6 +373,28 @@ export function getApiErrorMessage(error: unknown): string {
   }
 
   return 'Terjadi kesalahan saat memproses rekomendasi herbal.';
+}
+
+export function formatPercent(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 'Belum tersedia';
+  }
+
+  return `${Math.round(value * 100)}%`;
+}
+
+export function getSafetyLabel(status?: HerbalCandidate['safety_status'], label?: string): string {
+  if (label) return label;
+  const safetyLabelMap: Record<string, string> = {
+    safe: 'Relatif aman',
+    eligible: 'Relatif aman',
+    caution: 'Perlu perhatian',
+    conditional: 'Perlu perhatian',
+    unsafe: 'Tidak aman',
+    excluded: 'Tidak aman',
+    unknown: 'Data keamanan belum cukup',
+  };
+  return safetyLabelMap[status ?? 'unknown'] ?? safetyLabelMap.unknown;
 }
 
 export function normalizeHerbalRecommendationPayload(
