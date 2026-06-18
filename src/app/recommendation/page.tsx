@@ -213,7 +213,11 @@ export default function HerbalRecommendationPage() {
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = complaint.trim();
-    if (!trimmed || isLoading) return;
+    if (isLoading) return;
+    if (!trimmed) {
+      setError('Isi keluhan utama terlebih dahulu.');
+      return;
+    }
 
     setError(null);
     setResponse(null);
@@ -225,10 +229,14 @@ export default function HerbalRecommendationPage() {
       setStatus('analyzing_symptoms');
       const result = await analyzeHerbalComplaint({
         complaint: trimmed,
-        age_group: 'unknown',
-        pregnancy_status: 'unknown',
+        symptoms: [],
+        persona: 'umum',
+        model_choice: 'fast-medium',
+        age_group: null,
+        pregnancy_status: null,
         allergies: [],
         chronic_conditions: [],
+        medical_conditions: [],
         current_medications: [],
       });
       setStatus('searching_graph');

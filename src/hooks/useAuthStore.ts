@@ -3,6 +3,8 @@ import type { User } from '@/types';
 import { authApi } from '@/lib/api/auth';
 import type { LoginRequest, RegisterRequest } from '@/types';
 
+let initializePromise: Promise<User> | null = null;
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -69,12 +71,24 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isInitialized: true });
       return;
     }
+    if (initializePromise) {
+      try {
+        const user = await initializePromise;
+        set({ user, token, isInitialized: true });
+      } catch {
+        // Handled by original caller
+      }
+      return;
+    }
+    initializePromise = authApi.getMe();
     try {
-      const user = await authApi.getMe();
+      const user = await initializePromise;
       set({ user, token, isInitialized: true });
     } catch {
       localStorage.removeItem('access_token');
       set({ user: null, token: null, isInitialized: true });
+    } finally {
+      initializePromise = null;
     }
   },
 }));

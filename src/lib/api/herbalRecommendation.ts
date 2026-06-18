@@ -62,7 +62,7 @@ export interface CandidateScores {
 
 export interface FieldVerification {
   field_name: string;
-  value: any;
+  value: unknown;
   verification_source: VerificationSource;
   graph_node_ids: string[];
   graph_relationship_ids: string[];
@@ -115,10 +115,14 @@ export interface SourceProvenanceItem {
 
 export interface HerbalRecommendationRequest {
   complaint: string;
-  age_group?: 'unknown' | 'infant' | 'child' | 'adolescent' | 'adult' | 'elderly';
-  pregnancy_status?: 'unknown' | 'not_pregnant' | 'pregnant' | 'breastfeeding';
+  symptoms?: string[];
+  persona?: string;
+  model_choice?: string;
+  age_group?: 'child' | 'teen' | 'adult' | 'elderly' | null;
+  pregnancy_status?: 'not_pregnant' | 'pregnant' | 'breastfeeding' | 'unknown' | null;
   allergies?: string[];
   chronic_conditions?: string[];
+  medical_conditions?: string[];
   current_medications?: string[];
 }
 
@@ -296,6 +300,64 @@ export class HerbalRecommendationApiError extends Error {
 
 const HERBAL_ANALYZE_PATH = '/api/herbal-recommendations/analyze';
 
+type ErrorResponse = {
+  data?: Record<string, unknown>;
+  error?: { message?: string; details?: unknown };
+  detail?: unknown;
+};
+
+function getErrorResponse(error: unknown): ErrorResponse | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  if ('response' in error) return (error as { response?: ErrorResponse }).response;
+  return error as ErrorResponse;
+}
+
+export function getApiErrorMessage(error: unknown): string {
+  const response = getErrorResponse(error);
+  const body = (response?.data ?? response) as {
+    error?: { message?: string; details?: unknown };
+    detail?: unknown;
+  } | undefined;
+
+  if (body?.error?.message) {
+    const details = body.error.details;
+
+    if (Array.isArray(details) && details.length > 0) {
+      const first = details[0] as { loc?: unknown; msg?: string; message?: string };
+      const loc = Array.isArray(first.loc) ? first.loc.join('.') : '';
+      const msg = first.msg ?? first.message;
+
+      if (loc || msg) {
+        return `${body.error.message}${loc ? ` (${loc})` : ''}${msg ? `: ${msg}` : ''}`;
+      }
+    }
+
+    return body.error.message;
+  }
+
+  if (Array.isArray(body?.detail) && body.detail.length > 0) {
+    const first = body.detail[0] as { loc?: unknown; msg?: string; message?: string };
+    const loc = Array.isArray(first.loc) ? first.loc.join('.') : '';
+    const msg = first.msg ?? first.message ?? 'Validasi gagal.';
+
+    return `${loc ? `${loc}: ` : ''}${msg}`;
+  }
+
+  return 'Terjadi kesalahan saat memproses rekomendasi herbal.';
+}
+
+export function normalizeHerbalRecommendationPayload(
+  payload: HerbalRecommendationRequest,
+): HerbalRecommendationRequest {
+  return {
+    ...payload,
+    age_group: payload.age_group && payload.age_group.trim() !== '' ? payload.age_group : null,
+    pregnancy_status: payload.pregnancy_status && payload.pregnancy_status.trim() !== ''
+      ? payload.pregnancy_status
+      : null,
+  };
+}
+
 export async function analyzeHerbalComplaint(
   payload: HerbalRecommendationRequest,
 ): Promise<HerbalRecommendationResponse> {
@@ -308,7 +370,7 @@ export async function analyzeHerbalComplaint(
   try {
     const response = await apiClient.post<HerbalRecommendationResponse>(
       HERBAL_ANALYZE_PATH,
-      payload,
+      normalizeHerbalRecommendationPayload(payload),
       {
         headers: {
           'X-Request-ID': requestId,
@@ -324,18 +386,8 @@ export async function analyzeHerbalComplaint(
         response?: {
           status?: number;
           data?: {
-            detail?: {
-              code?: string;
-              message?: string;
-              error?: {
-                code?: string;
-                message?: string;
-              };
-            };
-            error?: {
-              code?: string;
-              message?: string;
-            };
+            detail?: { code?: string; message?: string; error?: { code?: string; message?: string } };
+            error?: { code?: string; message?: string };
           };
         };
       };
@@ -347,9 +399,7 @@ export async function analyzeHerbalComplaint(
         : 'Layanan rekomendasi herbal belum tersedia.';
       throw new HerbalRecommendationApiError(
         apiError?.code ?? body?.detail?.code ?? 'HERBAL_RECOMMENDATION_FAILED',
-        status === 404
-          ? routeMissingMessage
-          : apiError?.message ?? body?.detail?.message ?? `Request gagal dengan HTTP ${status}`,
+        status === 404 ? routeMissingMessage : getApiErrorMessage(error),
         status,
       );
     }

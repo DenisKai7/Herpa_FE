@@ -28,6 +28,8 @@ interface ChatState {
   clearMessages: () => void;
 }
 
+let fetchSessionsPromise: Promise<ChatSession[]> | null = null;
+
 export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
@@ -39,11 +41,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   fetchSessions: async () => {
     set({ isLoadingSessions: true });
+    if (fetchSessionsPromise) {
+      try {
+        const sessions = await fetchSessionsPromise;
+        set({ sessions, isLoadingSessions: false });
+      } catch {
+        // Handled by original caller
+      }
+      return;
+    }
+    fetchSessionsPromise = chatApi.getSessions();
     try {
-      const sessions = await chatApi.getSessions();
+      const sessions = await fetchSessionsPromise;
       set({ sessions, isLoadingSessions: false });
     } catch {
       set({ isLoadingSessions: false });
+    } finally {
+      fetchSessionsPromise = null;
     }
   },
 
