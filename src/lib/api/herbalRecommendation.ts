@@ -207,6 +207,166 @@ export interface EvidenceInfo {
   source_ids: string[];
 }
 
+export type SourceReference = {
+  type?: string;
+  source_id?: string | null;
+  title?: string | null;
+  identifier?: string | null;
+  year?: string | number | null;
+  url?: string | null;
+};
+
+export type TraditionalUseItem = {
+  id?: string | null;
+  title?: string | null;
+  description?: string | null;
+  category?: string | null;
+  evidence_level?: string;
+  verification_status?: string;
+  recommendation_weight?: number | null;
+  sources?: SourceReference[];
+};
+
+export type PreparationMethodItem = {
+  id?: string | null;
+  title?: string | null;
+  method_type?: string | null;
+  plant_part?: string | null;
+  ingredients?: string[];
+  steps?: string[];
+  notes?: string | null;
+  verification_status?: string;
+  formulations?: string[];
+  sources?: SourceReference[];
+};
+
+export type UsageGuidelineItem = {
+  id?: string | null;
+  title?: string | null;
+  description?: string | null;
+  frequency_text?: string | null;
+  duration_text?: string | null;
+  dose_status?: string;
+  verification_status?: string;
+  sources?: SourceReference[];
+};
+
+export type SafetyWarningItem = {
+  id?: string | null;
+  title?: string | null;
+  description?: string | null;
+  severity?: string;
+  verification_status?: string;
+  population_risks?: string[];
+  sources?: SourceReference[];
+};
+
+export type PlantPartItem = {
+  id?: string | null;
+  name?: string | null;
+  description?: string | null;
+};
+
+export type StorageGuidelineItem = {
+  id?: string | null;
+  title?: string | null;
+  description?: string | null;
+  storage_temperature?: string | null;
+  notes?: string | null;
+  verification_status?: string;
+};
+
+export type MythFactItem = {
+  id?: string | null;
+  claim?: string | null;
+  fact?: string | null;
+  risk_level?: string | null;
+  verification_status?: string;
+};
+
+export type QualityStandardItem = {
+  id?: string | null;
+  parameter?: string | null;
+  value?: string | null;
+  source_standard?: string | null;
+  verification_status?: string;
+};
+
+export type ClinicalGuidelineItem = {
+  id?: string | null;
+  mechanism?: string | null;
+  therapeutic_dose_text?: string | null;
+  notes?: string | null;
+  visible_to?: string[];
+  sources?: SourceReference[];
+};
+
+export type DrugInteractionItem = {
+  id?: string | null;
+  substance?: string | null;
+  description?: string | null;
+  severity?: string;
+  population_risks?: string[];
+};
+
+export type ContraindicationItem = {
+  id?: string | null;
+  condition?: string | null;
+  description?: string | null;
+  severity?: string;
+  population_risks?: string[];
+};
+
+export type PharmacokineticProfileItem = {
+  absorption?: string | null;
+  distribution?: string | null;
+  metabolism?: string | null;
+  excretion?: string | null;
+};
+
+export type ResearchTopicItem = {
+  id?: string | null;
+  title?: string | null;
+  category?: string | null;
+  visible_to?: string[];
+};
+
+export type ClaimEvidenceItem = {
+  claim_id?: string | null;
+  claim_text?: string | null;
+  claim_type?: string | null;
+  evidence_level?: string;
+  evidence_summary?: string | null;
+  sources?: SourceReference[];
+};
+
+export type SymptomItem = {
+  id?: string | null;
+  name?: string | null;
+  category?: string | null;
+  aliases?: string[];
+};
+
+export type HerbEnrichmentDetail = {
+  traditional_uses?: TraditionalUseItem[];
+  preparation_methods?: PreparationMethodItem[];
+  usage_guidelines?: UsageGuidelineItem[];
+  safety_warnings?: SafetyWarningItem[];
+  plant_parts?: PlantPartItem[];
+  storage_guidelines?: StorageGuidelineItem[];
+  myth_facts?: MythFactItem[];
+  quality_standards?: QualityStandardItem[];
+  clinical_guidelines?: ClinicalGuidelineItem[];
+  drug_interactions?: DrugInteractionItem[];
+  contraindications?: ContraindicationItem[];
+  pharmacokinetic_profiles?: PharmacokineticProfileItem[];
+  research_topics?: ResearchTopicItem[];
+  claims?: ClaimEvidenceItem[];
+  related_symptoms?: SymptomItem[];
+};
+
+export type Persona = 'umum' | 'pelajar' | 'peneliti' | 'tenaga_medis';
+
 export interface HerbalCandidate {
   plant_id?: string;
   herb_id: string;
@@ -227,20 +387,30 @@ export interface HerbalCandidate {
   recommendation_reason: string;
   reason?: string;
   match_reasons?: string[];
-  related_symptoms?: string[];
-  plant_parts?: string[];
+  related_symptoms?: Array<string | SymptomItem>;
+  plant_parts?: Array<string | PlantPartItem>;
   active_compounds: string[];
-  traditional_uses?: string[];
+  traditional_uses?: Array<string | TraditionalUseItem>;
   supported_activities?: string[];
   evidence_level: string;
   evidence_status?: 'available' | 'limited' | 'unavailable' | 'unknown';
   evidence_label?: string;
   evidence_sources?: Array<Record<string, unknown>>;
-  preparation_methods?: PreparationMethod[];
+  enrichment?: HerbEnrichmentDetail;
+  preparation_methods?: Array<PreparationMethod | PreparationMethodItem>;
+  usage_guidelines?: UsageGuidelineItem[];
   usage_rules?: UsageRule[];
-  contraindications: string[];
+  safety_warnings?: SafetyWarningItem[];
+  storage_guidelines?: StorageGuidelineItem[];
+  myth_facts?: MythFactItem[];
+  quality_standards?: QualityStandardItem[];
+  clinical_guidelines?: ClinicalGuidelineItem[];
+  pharmacokinetic_profiles?: PharmacokineticProfileItem[];
+  research_topics?: ResearchTopicItem[];
+  claims?: ClaimEvidenceItem[];
+  contraindications: Array<string | ContraindicationItem>;
   interactions?: string[];
-  drug_interactions?: string[];
+  drug_interactions?: Array<string | DrugInteractionItem>;
   side_effects: string[];
   risk_groups?: string[];
   warnings: Array<SafetyItem | string>;
@@ -395,6 +565,57 @@ export function getSafetyLabel(status?: HerbalCandidate['safety_status'], label?
     unknown: 'Data keamanan belum cukup',
   };
   return safetyLabelMap[status ?? 'unknown'] ?? safetyLabelMap.unknown;
+}
+
+export function getVerificationLabel(status?: string) {
+  switch (status) {
+    case 'verified':
+      return 'Terverifikasi';
+    case 'limited':
+      return 'Data terbatas';
+    case 'traditional':
+      return 'Penggunaan tradisional';
+    case 'unavailable':
+      return 'Belum tersedia';
+    default:
+      return 'Status belum diketahui';
+  }
+}
+
+export function getEvidenceLabel(level?: string) {
+  switch (level) {
+    case 'clinical':
+      return 'Bukti klinis';
+    case 'pharmacopoeia':
+      return 'Farmakope/Materia Medika';
+    case 'review':
+      return 'Kajian literatur';
+    case 'preclinical':
+      return 'Praklinik';
+    case 'traditional':
+      return 'Tradisional';
+    case 'computational':
+      return 'Komputasional';
+    default:
+      return 'Belum diketahui';
+  }
+}
+
+export function dedupeSources(sources: SourceReference[]) {
+  const seen = new Set<string>();
+
+  return sources.filter((source) => {
+    const key = source.source_id ?? source.identifier ?? source.title ?? JSON.stringify(source);
+
+    if (seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
+}
+
+export function canShowClinicalDose(persona?: string) {
+  return persona === 'tenaga_medis' || persona === 'peneliti';
 }
 
 export function normalizeHerbalRecommendationPayload(

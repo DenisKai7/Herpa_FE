@@ -17,8 +17,12 @@ import {
 import { cn } from '@/lib/utils';
 import {
   analyzeHerbalComplaint,
+  canShowClinicalDose,
+  dedupeSources,
   formatPercent,
+  getEvidenceLabel,
   getSafetyLabel,
+  getVerificationLabel,
   HerbalCandidate,
   HerbalRecommendationApiError,
   HerbalRecommendationResponse,
@@ -27,8 +31,10 @@ import {
 } from '@/lib/api/herbalRecommendation';
 
 const emptyText = 'Informasi ini tidak ditampilkan karena belum lolos verifikasi.';
+const medicalDisclaimer = 'Informasi ini bersifat edukatif dan bukan diagnosis atau pengganti tenaga kesehatan.';
 
-type DetailTab = 'pengolahan' | 'aturan' | 'peringatan' | 'sumber';
+type DetailTab = 'ringkasan' | 'tradisional' | 'pengolahan' | 'aturan' | 'peringatan' | 'sumber' | 'lanjutan';
+type Persona = 'umum' | 'pelajar' | 'peneliti' | 'tenaga_medis';
 
 const statusText: Record<RecommendationStatus, string> = {
   idle: 'Menunggu input keluhan.',
@@ -93,6 +99,79 @@ function formatEvidenceLevel(value?: string, label?: string) {
     insufficient_evidence: 'Bukti masih terbatas',
   };
   return value ? labels[value] ?? 'Data bukti belum tersedia' : 'Data bukti belum tersedia';
+}
+
+function asArray<T>(value?: T[] | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function textFromUnknown(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const item = value as Record<string, unknown>;
+    return String(item.name ?? item.title ?? item.description ?? item.claim ?? item.condition ?? item.substance ?? '');
+  }
+  return String(value);
+}
+
+function itemKey(prefix: string, item: unknown, index: number) {
+  if (typeof item === 'object' && item !== null) {
+    const record = item as Record<string, unknown>;
+    return String(record.id ?? record.method_id ?? record.usage_rule_id ?? record.claim_id ?? `${prefix}-${index}`);
+  }
+  return `${prefix}-${index}-${String(item)}`;
+}
+
+function candidatePlantParts(candidate: HerbalCandidate) {
+  return [
+    ...asArray(candidate.plant_parts),
+    ...asArray(candidate.enrichment?.plant_parts),
+  ].map(textFromUnknown).filter(Boolean);
+}
+
+function candidateRelatedSymptoms(candidate: HerbalCandidate) {
+  return [
+    ...asArray(candidate.matched_symptoms),
+    ...asArray(candidate.related_symptoms),
+    ...asArray(candidate.enrichment?.related_symptoms).flatMap((symptom) => [symptom.name, ...(symptom.aliases ?? [])]),
+  ].map(textFromUnknown).filter(Boolean);
+}
+
+function nestedSources(candidate: HerbalCandidate) {
+  return dedupeSources([
+    ...(candidate.evidence_sources ?? []).map((source) => source as Record<string, unknown>),
+    ...(candidate.sources ?? []).map((source) => ({
+      source_id: source.source_id,
+      title: source.title,
+      identifier: source.identifier,
+      year: source.year,
+      url: source.url,
+    })),
+    ...asArray(candidate.traditional_uses).flatMap((item) => typeof item === 'object' ? (item.sources ?? []) : []),
+    ...asArray(candidate.enrichment?.traditional_uses).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.preparation_methods).flatMap((item) => 'sources' in item ? (item.sources ?? []) : []),
+    ...asArray(candidate.enrichment?.preparation_methods).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.usage_guidelines).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.enrichment?.usage_guidelines).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.safety_warnings).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.enrichment?.safety_warnings).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.clinical_guidelines).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.enrichment?.clinical_guidelines).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.claims).flatMap((item) => item.sources ?? []),
+    ...asArray(candidate.enrichment?.claims).flatMap((item) => item.sources ?? []),
+  ].map((source) => {
+    const record = source as Record<string, unknown>;
+
+    return {
+      type: typeof record.type === 'string' ? record.type : 'neo4j',
+      source_id: typeof record.source_id === 'string' ? record.source_id : null,
+      title: typeof record.title === 'string' ? record.title : null,
+      identifier: typeof record.identifier === 'string' ? record.identifier : null,
+      year: typeof record.year === 'string' || typeof record.year === 'number' ? record.year : null,
+      url: typeof record.url === 'string' ? record.url : null,
+    };
+  }));
 }
 
 function getVerificationSourceFromCandidate(candidate: HerbalCandidate): VerificationSource {
@@ -192,7 +271,8 @@ export default function HerbalRecommendationPage() {
   const [status, setStatus] = useState<RecommendationStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [selectedPlant, setSelectedPlant] = useState<HerbalCandidate | null>(null);
-  const [activeTab, setActiveTab] = useState<DetailTab>('pengolahan');
+  const [activeTab, setActiveTab] = useState<DetailTab>('ringkasan');
+  const [persona, setPersona] = useState<Persona>('umum');
 
   const recommendations = uniqueCandidates(response?.recommendations ?? []);
   const isLoading = ['validating', 'analyzing_symptoms', 'searching_graph', 'checking_safety', 'ranking'].includes(status);
@@ -217,7 +297,7 @@ export default function HerbalRecommendationPage() {
       const result = await analyzeHerbalComplaint({
         complaint: trimmed,
         symptoms: [],
-        persona: 'umum',
+        persona,
         model_choice: 'fast-medium',
         age_group: null,
         pregnancy_status: null,
@@ -315,6 +395,20 @@ export default function HerbalRecommendationPage() {
                     {complaint.length}/1000
                   </div>
                 </div>
+
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Persona tampilan
+                  <select
+                    value={persona}
+                    onChange={(event) => setPersona(event.target.value as Persona)}
+                    className="mt-2 w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm normal-case tracking-normal text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500/40"
+                  >
+                    <option value="umum">Umum</option>
+                    <option value="pelajar">Pelajar</option>
+                    <option value="peneliti">Peneliti</option>
+                    <option value="tenaga_medis">Tenaga medis</option>
+                  </select>
+                </label>
 
                 <button
                   type="submit"
@@ -428,7 +522,7 @@ export default function HerbalRecommendationPage() {
                           transition={{ delay: idx * 0.04 }}
                           whileHover={{ scale: 1.02 }}
                           onClick={() => {
-                            setActiveTab('pengolahan');
+                            setActiveTab('ringkasan');
                             setSelectedPlant(plant);
                           }}
                           className="bg-white dark:bg-gray-900 border-2 border-green-500 rounded-2xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer text-left select-none flex flex-col justify-between h-full"
@@ -499,6 +593,22 @@ export default function HerbalRecommendationPage() {
 
           const usageFv = selectedPlant.field_verifications?.find(f => f.field_name === 'usage_rule');
           const isUsageModel = usageFv?.verification_source === 'model_assisted';
+          const traditionalUses = [...asArray(selectedPlant.traditional_uses), ...asArray(selectedPlant.enrichment?.traditional_uses)];
+          const preparationMethods = [...asArray(selectedPlant.preparation_methods), ...asArray(selectedPlant.enrichment?.preparation_methods)];
+          const usageGuidelines = [...asArray(selectedPlant.usage_guidelines), ...asArray(selectedPlant.enrichment?.usage_guidelines)];
+          const safetyWarnings = [...asArray(selectedPlant.safety_warnings), ...asArray(selectedPlant.enrichment?.safety_warnings)];
+          const drugInteractions = [...asArray(selectedPlant.drug_interactions), ...asArray(selectedPlant.enrichment?.drug_interactions)];
+          const contraindications = [...asArray(selectedPlant.contraindications), ...asArray(selectedPlant.enrichment?.contraindications)];
+          const plantParts = candidatePlantParts(selectedPlant);
+          const relatedSymptoms = candidateRelatedSymptoms(selectedPlant);
+          const sources = nestedSources(selectedPlant);
+          const storageGuidelines = [...asArray(selectedPlant.storage_guidelines), ...asArray(selectedPlant.enrichment?.storage_guidelines)];
+          const mythFacts = [...asArray(selectedPlant.myth_facts), ...asArray(selectedPlant.enrichment?.myth_facts)];
+          const qualityStandards = [...asArray(selectedPlant.quality_standards), ...asArray(selectedPlant.enrichment?.quality_standards)];
+          const clinicalGuidelines = [...asArray(selectedPlant.clinical_guidelines), ...asArray(selectedPlant.enrichment?.clinical_guidelines)];
+          const pharmacokinetics = [...asArray(selectedPlant.pharmacokinetic_profiles), ...asArray(selectedPlant.enrichment?.pharmacokinetic_profiles)];
+          const researchTopics = [...asArray(selectedPlant.research_topics), ...asArray(selectedPlant.enrichment?.research_topics)];
+          const claims = [...asArray(selectedPlant.claims), ...asArray(selectedPlant.enrichment?.claims)];
 
           return (
             <div className="fixed inset-0 z-50 flex justify-end">
@@ -544,7 +654,7 @@ export default function HerbalRecommendationPage() {
                     <p>{selectedPlant.explanation || selectedPlant.recommendation_reason || 'Alasan rekomendasi belum tersedia pada data saat ini.'}</p>
                     <div>
                       <span className="font-black text-gray-500 uppercase tracking-wider">Gejala cocok: </span>
-                      {selectedPlant.matched_symptoms?.length ? selectedPlant.matched_symptoms.join(', ') : selectedPlant.related_symptoms?.length ? selectedPlant.related_symptoms.join(', ') : emptyText}
+                      {relatedSymptoms.length ? relatedSymptoms.join(', ') : emptyText}
                       {(selectedPlant.unmatched_symptoms?.length ?? 0) > 0 && (
                         <span className="text-amber-600 dark:text-amber-400 ml-1">
                           (tidak cocok: {selectedPlant.unmatched_symptoms?.join(', ')})
@@ -567,7 +677,7 @@ export default function HerbalRecommendationPage() {
                     )}
                     <div>
                       <span className="font-black text-gray-500 uppercase tracking-wider">Penggunaan tradisional: </span>
-                      {selectedPlant.traditional_uses?.length ? selectedPlant.traditional_uses.join(', ') : emptyText}
+                      {traditionalUses.length ? traditionalUses.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}
                     </div>
                     {(selectedPlant.active_compounds?.length ?? 0) > 0 && (
                       <div>
@@ -583,10 +693,13 @@ export default function HerbalRecommendationPage() {
 
                   <div className="flex border-b border-gray-100 dark:border-gray-800 gap-4 text-xs font-bold uppercase tracking-wider">
                     {[
+                      ['ringkasan', 'Ringkasan'],
+                      ['tradisional', 'Penggunaan Tradisional'],
                       ['pengolahan', 'Cara Pengolahan'],
                       ['aturan', 'Aturan Pakai'],
                       ['peringatan', 'Peringatan'],
                       ['sumber', 'Sumber'],
+                      ['lanjutan', 'Lanjutan'],
                     ].map(([key, label]) => (
                       <button
                         key={key}
@@ -600,6 +713,41 @@ export default function HerbalRecommendationPage() {
                       </button>
                     ))}
                   </div>
+
+                  {activeTab === 'ringkasan' && (
+                    <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300">
+                      <div className="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-2">
+                        <p><span className="font-bold">Tanaman:</span> {selectedPlant.local_name}</p>
+                        <p><span className="font-bold">Nama ilmiah:</span> {selectedPlant.scientific_name || emptyText}</p>
+                        <p><span className="font-bold">Score:</span> {formatPercent(selectedPlant.recommendation_score)}</p>
+                        <p><span className="font-bold">Relevansi:</span> {selectedPlant.relevance_label ?? 'Relevansi belum tersedia'} ({formatPercent(selectedPlant.symptom_coverage)})</p>
+                        <p><span className="font-bold">Alasan:</span> {selectedPlant.explanation || selectedPlant.recommendation_reason || 'Alasan rekomendasi belum tersedia.'}</p>
+                        <p><span className="font-bold">Gejala terkait:</span> {relatedSymptoms.length ? relatedSymptoms.join(', ') : emptyText}</p>
+                        <p><span className="font-bold">Senyawa terkait:</span> {selectedPlant.active_compounds?.length ? selectedPlant.active_compounds.join(', ') : emptyText}</p>
+                        <p><span className="font-bold">Bagian tanaman:</span> {plantParts.length ? plantParts.join(', ') : emptyText}</p>
+                      </div>
+                      <p className="text-[11px] text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 p-3 rounded-xl">{response?.general_disclaimer || medicalDisclaimer}</p>
+                    </div>
+                  )}
+
+                  {activeTab === 'tradisional' && (
+                    <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300">
+                      {traditionalUses.length ? traditionalUses.map((use, idx) => {
+                        const item = typeof use === 'string' ? { title: use } : use;
+                        return (
+                          <div key={itemKey('tradisional', use, idx)} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-1">
+                            <h4 className="font-bold text-gray-800 dark:text-gray-200">{item.title || 'Penggunaan tradisional'}</h4>
+                            {'description' in item && item.description && <p>{item.description}</p>}
+                            {'category' in item && item.category && <p>Kategori: {item.category}</p>}
+                            {'evidence_level' in item && <p>Bukti: {getEvidenceLabel(item.evidence_level)}</p>}
+                            {'verification_status' in item && <p>Status: {getVerificationLabel(item.verification_status)}</p>}
+                          </div>
+                        );
+                      }) : (
+                        <p className="text-gray-400 italic">Informasi penggunaan tradisional belum tersedia pada knowledge graph.</p>
+                      )}
+                    </div>
+                  )}
 
                   {activeTab === 'pengolahan' && (
                     <div className="space-y-4">
@@ -618,21 +766,34 @@ export default function HerbalRecommendationPage() {
                           )}
                         </div>
                       )}
-                      {selectedPlant.preparation_methods?.length ? selectedPlant.preparation_methods.map((method) => (
-                        <div key={method.method_id} className="space-y-3">
-                          <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">{method.title}</h4>
-                          <p className="text-xs text-gray-500">Bagian tanaman: {method.plant_part || emptyText}</p>
-                          <p className="text-xs text-gray-500">Bahan: {method.ingredients.length ? method.ingredients.map(i => typeof i === 'string' ? i : `${i.name}${i.amount_text ? ` (${i.amount_text})` : ''}`).join(', ') : 'Takaran terstandar belum tersedia pada database.'}</p>
-                          <ol className="space-y-2.5">
-                            {(method.steps.length ? method.steps : [emptyText]).map((step, idx) => (
-                              <li key={`${method.method_id}-${idx}`} className="flex gap-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                                <span className="w-5 h-5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
-                                <span>{step}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
-                      )) : null}
+                      {preparationMethods.length ? preparationMethods.map((method, methodIdx) => {
+                        const id = 'method_id' in method ? method.method_id : method.id;
+                        const methodType = 'preparation_type' in method ? method.preparation_type : method.method_type;
+                        const ingredients = (Array.isArray(method.ingredients) ? method.ingredients : []).map((i) => typeof i === 'string' ? i : `${i.name}${i.amount_text ? ` (${i.amount_text})` : ''}`);
+                        const formulations = 'formulations' in method ? asArray(method.formulations) : [];
+                        const steps = Array.isArray(method.steps) && method.steps.length ? method.steps : [emptyText];
+                        return (
+                          <div key={id || methodIdx} className="space-y-3 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                            <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">{method.title}</h4>
+                            {methodType && <p className="text-xs text-gray-500">Jenis: {methodType}</p>}
+                            <p className="text-xs text-gray-500">Bagian tanaman: {method.plant_part || emptyText}</p>
+                            <p className="text-xs text-gray-500">Bahan: {ingredients.length ? ingredients.join(', ') : 'Takaran terstandar belum tersedia pada database.'}</p>
+                            {formulations.length > 0 && <p className="text-xs text-gray-500">Formulasi: {formulations.join(', ')}</p>}
+                            {'notes' in method && method.notes && <p className="text-xs text-gray-500">Catatan: {method.notes}</p>}
+                            {'verification_status' in method && <p className="text-xs text-gray-500">Status: {getVerificationLabel(method.verification_status)}</p>}
+                            <ol className="space-y-2.5">
+                              {steps.map((step, idx) => (
+                                <li key={`${id || methodIdx}-${idx}`} className="flex gap-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                                  <span className="w-5 h-5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                                  <span>{step}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        );
+                      }) : (
+                        <p className="text-gray-400 italic text-xs">Cara pengolahan belum tersedia untuk kandidat ini.</p>
+                      )}
                     </div>
                   )}
 
@@ -651,15 +812,28 @@ export default function HerbalRecommendationPage() {
                           Status: {isUsageModel ? 'Belum terverifikasi Knowledge Graph' : 'Terverifikasi Knowledge Graph'}
                         </p>
                       </div>
+                      {usageGuidelines.map((guide, idx) => (
+                        <div key={guide.id || idx} className="space-y-2 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300">
+                          <div className="flex gap-2.5 items-start"><ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /><span className="font-bold">{guide.title || 'Aturan pakai edukatif'}</span></div>
+                          {guide.description && <p>{guide.description}</p>}
+                          <p>Frekuensi: {guide.frequency_text || emptyText}</p>
+                          <p>Durasi: {guide.duration_text || emptyText}</p>
+                          <p>Status dosis: {guide.dose_status || 'not_clinically_established'}</p>
+                          <p>Status: {getVerificationLabel(guide.verification_status)}</p>
+                        </div>
+                      ))}
                       {selectedPlant.usage_rules?.length ? selectedPlant.usage_rules.map((rule, idx) => (
                         <div key={idx} className="space-y-2 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300">
                           <div className="flex gap-2.5 items-start"><ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /><span>Bentuk: {rule.form || emptyText}</span></div>
-                          <p>Jumlah: {rule.amount_text}</p>
+                          <p>Jumlah: {canShowClinicalDose(persona) ? (rule.amount_text || emptyText) : 'Dosis klinis detail tidak ditampilkan untuk penggunaan mandiri. Gunakan sesuai batas wajar dan konsultasikan kepada tenaga kesehatan bila memiliki kondisi khusus.'}</p>
                           <p>Frekuensi: {rule.frequency_text}</p>
                           <p>Durasi: {rule.duration_text || emptyText}</p>
                           <p>Catatan: {rule.administration_notes.length ? rule.administration_notes.join(', ') : emptyText}</p>
                         </div>
                       )) : null}
+                      {!usageGuidelines.length && !selectedPlant.usage_rules?.length && (
+                        <p className="text-gray-400 italic text-xs">Aturan pakai belum tersedia pada knowledge graph. Gunakan informasi herbal secara hati-hati dan konsultasikan dengan tenaga kesehatan bila gejala menetap.</p>
+                      )}
                     </div>
                   )}
 
@@ -686,6 +860,17 @@ export default function HerbalRecommendationPage() {
                         <div className="space-y-3 w-full">
                           <span className="text-xs font-black text-red-800 dark:text-red-400 block uppercase tracking-wide">Peringatan Keamanan Medis</span>
 
+                          {safetyWarnings.length > 0 && (
+                            <div>
+                              <span className="font-bold">Peringatan knowledge graph:</span>
+                              <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                {safetyWarnings.map((warning, idx) => (
+                                  <li key={warning.id || idx}>{warning.title || warning.description || 'Peringatan'}{warning.population_risks?.length ? ` — risiko: ${warning.population_risks.join(', ')}` : ''}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
                           {selectedPlant.warnings?.length > 0 && (
                             <div>
                               <span className="font-bold">Peringatan:</span>
@@ -699,11 +884,11 @@ export default function HerbalRecommendationPage() {
 
                           <div>
                             <span className="font-bold">Kontraindikasi ({selectedPlant.contraindication_status?.status || 'missing'}):</span>
-                            <p>{selectedPlant.contraindications?.length ? selectedPlant.contraindications.join(', ') : emptyText}</p>
+                            <p>{contraindications.length ? contraindications.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}</p>
                           </div>
                           <div>
                             <span className="font-bold">Interaksi ({selectedPlant.interaction_status?.status || 'missing'}):</span>
-                            <p>{selectedPlant.interactions?.length ? selectedPlant.interactions.join(', ') : selectedPlant.drug_interactions?.length ? selectedPlant.drug_interactions.join(', ') : emptyText}</p>
+                            <p>{selectedPlant.interactions?.length ? selectedPlant.interactions.join(', ') : drugInteractions.length ? drugInteractions.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}</p>
                           </div>
                           <div>
                             <span className="font-bold">Kelompok berisiko ({selectedPlant.risk_group_status?.status || 'missing'}):</span>
@@ -715,6 +900,9 @@ export default function HerbalRecommendationPage() {
                           </div>
                         </div>
                       </div>
+                      {!safetyWarnings.length && !selectedPlant.warnings?.length && !contraindications.length && !drugInteractions.length && (
+                        <p className="text-gray-400 italic">Belum ada peringatan spesifik pada knowledge graph. Tetap berhati-hati bila sedang hamil, menyusui, memiliki penyakit kronis, atau menggunakan obat rutin.</p>
+                      )}
                     </div>
                   )}
 
@@ -725,7 +913,7 @@ export default function HerbalRecommendationPage() {
                         <div className="grid grid-cols-2 gap-2">
                           <p>Relevansi: <span className="font-mono">{formatPercent(selectedPlant.scores?.relevance ?? selectedPlant.scores?.relevance_score ?? selectedPlant.recommendation_score)}</span></p>
                           <p>Graph Coverage: <span className="font-mono">{formatPercent(selectedPlant.scores?.graph_coverage ?? selectedPlant.graph_coverage_score)}</span></p>
-                          <p>Sumber Tepercaya: <span className="font-mono">{formatPercent(selectedPlant.scores?.trusted_source_coverage ?? selectedPlant.trusted_source_coverage_score)}</span></p>
+                          <p>Cakupan Sumber: <span className="font-mono">{formatPercent(selectedPlant.scores?.trusted_source_coverage ?? selectedPlant.trusted_source_coverage_score)}</span></p>
                           <p>Model Assisted: <span className="font-mono">{formatPercent(selectedPlant.scores?.model_assisted_coverage ?? selectedPlant.model_assisted_coverage_score)}</span></p>
                           <p>Keamanan: <span className="font-mono">{formatPercent(selectedPlant.scores?.safety_coverage ?? selectedPlant.safety_coverage_score)}</span></p>
                           <p>Cakupan Gejala: <span className="font-mono">{formatPercent(selectedPlant.symptom_coverage)}</span></p>
@@ -733,24 +921,13 @@ export default function HerbalRecommendationPage() {
                         <p>Status Data Keamanan: <span className="font-mono capitalize">{selectedPlant.safety_data_status}</span></p>
                       </div>
 
-                      {selectedPlant.sources?.length > 0 ? (
+                      {sources.length > 0 ? (
                         <div className="space-y-3">
-                          <h4 className="font-extrabold uppercase text-gray-400 tracking-wider">Sumber Bukti</h4>
-                          {selectedPlant.sources.map((src) => (
-                            <div key={src.source_id} className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-bold text-gray-800 dark:text-gray-200">{src.title}</p>
-                                <span className={cn(
-                                  'text-[8px] font-black px-1.5 py-0.5 rounded-full',
-                                  src.evidence_grade === 'A' ? 'bg-green-100 text-green-700' :
-                                  src.evidence_grade === 'B' ? 'bg-blue-100 text-blue-700' :
-                                  src.evidence_grade === 'C' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-gray-100 text-gray-600'
-                                )}>
-                                  Tier {src.evidence_grade}
-                                </span>
-                              </div>
-                              {src.publisher && <p className="text-gray-500">{src.publisher}{src.year ? ` (${src.year})` : ''}</p>}
+                          <h4 className="font-extrabold uppercase text-gray-400 tracking-wider">Sumber</h4>
+                          {sources.map((src, idx) => (
+                            <div key={src.source_id || src.identifier || src.title || idx} className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800 space-y-1">
+                              <p className="font-bold text-gray-800 dark:text-gray-200">{src.title || src.source_id || 'Sumber Neo4j'}</p>
+                              {(src.identifier || src.year) && <p className="text-gray-500">{src.identifier}{src.year ? ` (${src.year})` : ''}</p>}
                               {src.url && <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{src.url}</a>}
                             </div>
                           ))}
@@ -765,8 +942,71 @@ export default function HerbalRecommendationPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-gray-400 italic">Tidak ada literatur spesifik yang tercatat di graph.</p>
+                        <p className="text-gray-400 italic">Sumber spesifik belum tersedia pada data ini.</p>
                       )}
+                    </div>
+                  )}
+
+                  {activeTab === 'lanjutan' && (
+                    <div className="space-y-4 text-xs text-gray-600 dark:text-gray-300">
+                      {(persona === 'umum' || persona === 'pelajar') && (
+                        <div className="space-y-3">
+                          <h4 className="font-extrabold uppercase text-gray-400 tracking-wider">Edukasi ringkas</h4>
+                          {storageGuidelines.length > 0 ? storageGuidelines.map((item, idx) => (
+                            <div key={item.id || idx} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                              <p className="font-bold">{item.title || 'Penyimpanan'}</p>
+                              <p>{item.description || item.notes || emptyText}</p>
+                              {item.storage_temperature && <p>Suhu: {item.storage_temperature}</p>}
+                            </div>
+                          )) : <p className="text-gray-400 italic">Panduan penyimpanan belum tersedia.</p>}
+                          {mythFacts.map((item, idx) => (
+                            <div key={item.id || idx} className="bg-purple-50 dark:bg-purple-950/20 p-3 rounded-xl border border-purple-100 dark:border-purple-900/40">
+                              <p className="font-bold">Mitos: {item.claim || emptyText}</p>
+                              <p>Fakta: {item.fact || emptyText}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {persona === 'peneliti' && (
+                        <div className="space-y-3">
+                          <h4 className="font-extrabold uppercase text-gray-400 tracking-wider">Peneliti</h4>
+                          {researchTopics.map((topic, idx) => <p key={topic.id || idx} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">{topic.title || emptyText}{topic.category ? ` — ${topic.category}` : ''}</p>)}
+                          {claims.map((claim, idx) => (
+                            <div key={claim.claim_id || idx} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                              <p className="font-bold">{claim.claim_text || 'Klaim'}</p>
+                              <p>Bukti: {getEvidenceLabel(claim.evidence_level)}</p>
+                              {claim.evidence_summary && <p>{claim.evidence_summary}</p>}
+                            </div>
+                          ))}
+                          {qualityStandards.map((standard, idx) => <p key={standard.id || idx} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">{standard.parameter || 'Standar mutu'}: {standard.value || emptyText}</p>)}
+                        </div>
+                      )}
+
+                      {persona === 'tenaga_medis' && (
+                        <div className="space-y-3">
+                          <h4 className="font-extrabold uppercase text-gray-400 tracking-wider">Tenaga medis</h4>
+                          {clinicalGuidelines.length > 0 ? clinicalGuidelines.map((guide, idx) => (
+                            <div key={guide.id || idx} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                              <p>Mekanisme: {guide.mechanism || emptyText}</p>
+                              <p>Dosis klinis: {canShowClinicalDose(persona) ? (guide.therapeutic_dose_text || emptyText) : 'Dosis klinis detail tidak ditampilkan untuk penggunaan mandiri. Gunakan sesuai batas wajar dan konsultasikan kepada tenaga kesehatan bila memiliki kondisi khusus.'}</p>
+                              {guide.notes && <p>Catatan: {guide.notes}</p>}
+                            </div>
+                          )) : <p className="text-gray-400 italic">Panduan klinis belum tersedia.</p>}
+                          <p><span className="font-bold">Interaksi:</span> {drugInteractions.length ? drugInteractions.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}</p>
+                          <p><span className="font-bold">Kontraindikasi:</span> {contraindications.length ? contraindications.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}</p>
+                        </div>
+                      )}
+
+                      {(persona === 'peneliti' || persona === 'tenaga_medis') && pharmacokinetics.map((pk, idx) => (
+                        <div key={idx} className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-1">
+                          <p className="font-bold">Farmakokinetik</p>
+                          <p>Absorpsi: {pk.absorption || emptyText}</p>
+                          <p>Distribusi: {pk.distribution || emptyText}</p>
+                          <p>Metabolisme: {pk.metabolism || emptyText}</p>
+                          <p>Ekskresi: {pk.excretion || emptyText}</p>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
