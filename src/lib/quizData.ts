@@ -384,3 +384,100 @@ export function getQuestionsForTopic(topicId: string): QuizSessionQuestion[] {
     }
   ];
 }
+
+export const QUIZ_LEVEL_DEFINITIONS = [
+  { level_number: 1, title: 'Level 1', label: 'Pilihan Ganda', quiz_type: 'multiple_choice' as const, description: 'Pilih satu jawaban yang paling tepat.' },
+  { level_number: 2, title: 'Level 2', label: 'Mencocokkan', quiz_type: 'matching' as const, description: 'Cocokkan konsep dengan jawaban yang benar.' },
+  { level_number: 3, title: 'Level 3', label: 'Benar/Salah', quiz_type: 'true_false' as const, description: 'Tentukan pernyataan benar atau salah.' },
+  { level_number: 4, title: 'Level 4', label: 'Jawaban Singkat', quiz_type: 'short_answer' as const, description: 'Jawab singkat dengan kata kunci utama.' },
+  { level_number: 5, title: 'Level 5', label: 'Studi Kasus', quiz_type: 'case_based' as const, description: 'Analisis kasus kimia dan pilih keputusan terbaik.' },
+];
+
+export function buildFallbackLevels(topicId: string) {
+  return QUIZ_LEVEL_DEFINITIONS.map((level) => ({
+    id: `${topicId}-level-${level.level_number}`,
+    topic_id: topicId,
+    level_number: level.level_number,
+    title: level.title,
+    description: level.description,
+    quiz_type: level.quiz_type,
+    xp_reward: level.level_number * 20,
+    passing_score: 70,
+    is_locked: level.level_number > 1,
+    is_completed: false,
+    progress: 0,
+  }));
+}
+
+export function getQuestionsForTopicLevel(topicId: string, levelNumber = 1): QuizSessionQuestion[] {
+  const sourceQuestions = getQuestionsForTopic(topicId);
+  const baseQuestions = Array.from({ length: 10 }, (_, index) => ({
+    ...sourceQuestions[index % sourceQuestions.length],
+    id: index + 1,
+  }));
+  const level = QUIZ_LEVEL_DEFINITIONS.find((item) => item.level_number === levelNumber) ?? QUIZ_LEVEL_DEFINITIONS[0];
+
+  return baseQuestions.map((question) => {
+    const correctOption = question.options.find((option) => option.label === question.correct_answer) ?? question.options[0];
+
+    if (level.quiz_type === 'matching') {
+      return {
+        ...question,
+        question_type: 'matching',
+        level_number: levelNumber,
+        level_id: `${topicId}-level-${levelNumber}`,
+        question: `Cocokkan konsep berikut berdasarkan topik: ${question.question}`,
+        matching_pairs: question.options.slice(0, 4).map((option) => ({
+          left: option.label,
+          right: option.text,
+        })),
+        correct_answer: question.correct_answer,
+      };
+    }
+
+    if (level.quiz_type === 'true_false') {
+      return {
+        ...question,
+        question_type: 'true_false',
+        level_number: levelNumber,
+        level_id: `${topicId}-level-${levelNumber}`,
+        question: `Benar atau salah: ${correctOption.text}`,
+        options: [
+          { label: 'true', text: 'Benar' },
+          { label: 'false', text: 'Salah' },
+        ],
+        correct_answer: 'true',
+      };
+    }
+
+    if (level.quiz_type === 'short_answer') {
+      return {
+        ...question,
+        question_type: 'short_answer',
+        level_number: levelNumber,
+        level_id: `${topicId}-level-${levelNumber}`,
+        question: `Jawab singkat: ${question.question}`,
+        accepted_answers: [correctOption.text, question.correct_answer],
+        correct_answer: correctOption.text,
+      };
+    }
+
+    if (level.quiz_type === 'case_based') {
+      return {
+        ...question,
+        question_type: 'case_based',
+        level_number: levelNumber,
+        level_id: `${topicId}-level-${levelNumber}`,
+        case_context: `Seorang siswa sedang menganalisis kasus kimia terkait ${topicId.replace(/-/g, ' ')}. Gunakan konsep yang tepat untuk mengambil keputusan.`,
+        question: `Berdasarkan kasus tersebut, ${question.question}`,
+      };
+    }
+
+    return {
+      ...question,
+      question_type: 'multiple_choice',
+      level_number: levelNumber,
+      level_id: `${topicId}-level-${levelNumber}`,
+    };
+  });
+}

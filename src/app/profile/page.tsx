@@ -15,18 +15,20 @@ import {
   Eye,
   EyeOff,
   LogOut,
-  Loader2,
   Shield,
   AtSign,
   KeyRound,
-  Save,
-  X,
+  MessageSquare,
+  BookOpen,
+  History,
 } from 'lucide-react';
 import { useAuthStore } from '@/hooks/useAuthStore';
 import { authApi } from '@/lib/api/auth';
 import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
+import type { Persona } from '@/types/persona';
+import type { ModelMode } from '@/types/model';
 import toast from 'react-hot-toast';
 
 // ─── Form Input Component ────────────────────────────────────────────
@@ -57,7 +59,7 @@ function FormInput({
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-sm font-medium text-slate-600 dark:text-slate-400"
+        className="block text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400"
       >
         {label}
       </label>
@@ -81,7 +83,7 @@ function FormInput({
             'w-full py-3 border rounded-xl text-sm transition-all duration-200',
             'bg-white text-slate-900 border-slate-200 focus:ring-purple-500/40 focus:border-purple-500',
             'dark:bg-[#1f2937] dark:text-white dark:border-slate-700 dark:focus:ring-blue-500/50 dark:focus:border-blue-500',
-            'placeholder:text-slate-400 dark:placeholder:text-gray-650',
+            'placeholder:text-slate-400 dark:placeholder:text-gray-600',
             'focus:outline-none focus:ring-2',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             prefix ? 'pl-14 pr-4' : 'pl-11 pr-4'
@@ -107,7 +109,7 @@ function PasswordInput({ id, label, value, onChange, placeholder }: PasswordInpu
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-sm font-medium text-slate-600 dark:text-slate-400"
+        className="block text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400"
       >
         {label}
       </label>
@@ -153,6 +155,8 @@ export default function ProfilePage() {
     instansi: '',
     provinsi: '',
     kota: '',
+    default_persona: 'umum' as Persona,
+    default_model_mode: 'fast-medium' as ModelMode,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAvatarHovered, setIsAvatarHovered] = useState(false);
@@ -187,6 +191,8 @@ export default function ProfilePage() {
         instansi: user.instansi || '',
         provinsi: user.provinsi || '',
         kota: user.kota || '',
+        default_persona: ((user as any).default_persona as Persona) || 'umum',
+        default_model_mode: ((user as any).default_model_mode as ModelMode) || 'fast-medium',
       });
     }
   }, [user]);
@@ -200,7 +206,7 @@ export default function ProfilePage() {
     );
   }
 
-  const updateField = (field: string, value: string) => {
+  const updateField = (field: string, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -213,7 +219,6 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Image must be less than 5MB.');
       return;
@@ -224,7 +229,7 @@ export default function ProfilePage() {
       setUser(updatedUser);
       toast.success('Avatar updated successfully!');
     } catch {
-      // Error toast handled by interceptor
+      // Handled by client toast interceptor
     }
   };
 
@@ -246,11 +251,15 @@ export default function ProfilePage() {
         instansi: form.instansi,
         provinsi: form.provinsi,
         kota: form.kota,
+        ...({
+          default_persona: form.default_persona,
+          default_model_mode: form.default_model_mode,
+        } as any),
       });
       setUser(updatedUser);
       toast.success('Profile updated successfully!');
     } catch {
-      // Error toast handled by interceptor
+      // Handled by client toast interceptor
     } finally {
       setIsSubmitting(false);
     }
@@ -283,7 +292,7 @@ export default function ProfilePage() {
       setShowPasswordModal(false);
       setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch {
-      // Error toast handled by interceptor
+      // Handled by client toast interceptor
     } finally {
       setIsChangingPassword(false);
     }
@@ -320,7 +329,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Logout Button (top-right) */}
           <button
             onClick={handleLogout}
             className={cn(
@@ -346,7 +354,6 @@ export default function ProfilePage() {
           >
             {/* ── Avatar Section ───────────────────────────────── */}
             <div className="px-6 py-10 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
-              {/* Clickable Avatar */}
               <div className="relative mb-5">
                 <button
                   type="button"
@@ -356,8 +363,6 @@ export default function ProfilePage() {
                   className="relative h-24 w-24 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-4xl cursor-pointer overflow-hidden ring-4 ring-slate-100 dark:ring-gray-800 transition-all duration-300 hover:ring-blue-500/30"
                 >
                   {initials}
-
-                  {/* Camera Overlay */}
                   <AnimatePresence>
                     {isAvatarHovered && (
                       <motion.div
@@ -372,8 +377,6 @@ export default function ProfilePage() {
                     )}
                   </AnimatePresence>
                 </button>
-
-                {/* Hidden file input */}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -383,30 +386,26 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* Name + Role Badge */}
               <h2 className="text-xl font-semibold text-slate-850 dark:text-gray-100">{user.full_name}</h2>
               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mt-2 capitalize">
                 {user.role === 'admin' && <Shield className="h-3 w-3 mr-1.5" />}
                 {user.role}
               </span>
 
-              {/* Joined date */}
               <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500 dark:text-gray-500">
                 <Calendar className="h-3.5 w-3.5" />
                 <span>Joined {joinedDate}</span>
               </div>
             </div>
 
-            {/* ── Editable Form Fields ─────────────────────────── */}
+            {/* ── Form Fields ─────────────────────────── */}
             <div className="p-6 space-y-6">
               {/* Section: Personal Information */}
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
                   Personal Information
                 </h3>
-
                 <div className="space-y-5">
-                  {/* Username */}
                   <FormInput
                     id="username"
                     label="Username"
@@ -415,8 +414,6 @@ export default function ProfilePage() {
                     onChange={(v) => updateField('username', v)}
                     placeholder="ahmadsuryadi"
                   />
-
-                  {/* Full Name */}
                   <FormInput
                     id="full_name"
                     label="Full Name"
@@ -425,8 +422,6 @@ export default function ProfilePage() {
                     onChange={(v) => updateField('full_name', v)}
                     placeholder="Dr. Ahmad Suryadi"
                   />
-
-                  {/* Email */}
                   <FormInput
                     id="email"
                     label="Email"
@@ -439,7 +434,46 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Divider */}
+              <div className="border-t border-slate-200 dark:border-gray-800" />
+
+              {/* Section: AI Preferences */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
+                  AI Preferences
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">
+                      Default Persona
+                    </label>
+                    <select
+                      value={form.default_persona}
+                      onChange={(e) => updateField('default_persona', e.target.value as Persona)}
+                      className="w-full px-3 py-3 border border-slate-250 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-550 focus:border-purple-500 bg-white dark:bg-[#1f2937] text-slate-900 dark:text-white"
+                    >
+                      <option value="umum">Umum</option>
+                      <option value="pelajar">Pelajar</option>
+                      <option value="peneliti">Peneliti</option>
+                      <option value="tenaga_medis">Tenaga Medis</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">
+                      Default Model Mode
+                    </label>
+                    <select
+                      value={form.default_model_mode}
+                      onChange={(e) => updateField('default_model_mode', e.target.value as ModelMode)}
+                      className="w-full px-3 py-3 border border-slate-250 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-550 focus:border-purple-500 bg-white dark:bg-[#1f2937] text-slate-900 dark:text-white"
+                    >
+                      <option value="fast-medium">Fast Medium</option>
+                      <option value="thinking-high">Thinking High</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div className="border-t border-slate-200 dark:border-gray-800" />
 
               {/* Section: Institution & Location */}
@@ -447,9 +481,7 @@ export default function ProfilePage() {
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
                   Institution & Location
                 </h3>
-
                 <div className="space-y-5">
-                  {/* Institution */}
                   <FormInput
                     id="instansi"
                     label="Institution (Instansi)"
@@ -458,8 +490,6 @@ export default function ProfilePage() {
                     onChange={(v) => updateField('instansi', v)}
                     placeholder="Rumah Sakit Harapan Kita"
                   />
-
-                  {/* Province & City side by side */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <FormInput
                       id="provinsi"
@@ -481,7 +511,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Divider */}
               <div className="border-t border-slate-200 dark:border-gray-800" />
 
               {/* ── Security Section ──────────────────────────── */}
@@ -489,7 +518,6 @@ export default function ProfilePage() {
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-5">
                   Security
                 </h3>
-
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-gray-800/40 border border-slate-200 dark:border-gray-700/50">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-slate-200/50 dark:bg-gray-700/50 flex items-center justify-center">
@@ -497,7 +525,7 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-800 dark:text-gray-200">Password</p>
-                      <p className="text-xs text-slate-550 dark:text-gray-500">Last changed &mdash; unknown</p>
+                      <p className="text-xs text-slate-500 dark:text-gray-500">Ubah password berkala untuk keamanan</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -512,12 +540,6 @@ export default function ProfilePage() {
                     >
                       Change Password
                     </button>
-                    <button
-                      type="button"
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer"
-                    >
-                      Forgot Password?
-                    </button>
                   </div>
                 </div>
               </div>
@@ -526,7 +548,6 @@ export default function ProfilePage() {
             {/* ── Action Buttons ───────────────────────────────── */}
             <div className="px-6 py-5 border-t border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/50">
               <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3">
-                {/* Cancel */}
                 <button
                   type="button"
                   onClick={() => router.push('/')}
@@ -538,8 +559,6 @@ export default function ProfilePage() {
                 >
                   Cancel
                 </button>
-
-                {/* Save Changes */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -547,101 +566,56 @@ export default function ProfilePage() {
                     'w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium',
                     'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800',
                     'focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
-                    'disabled:opacity-50 disabled:cursor-not-allowed',
-                    'transition-all duration-200 shadow-sm cursor-pointer'
+                    'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer'
                   )}
                 >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  Save Changes
                 </button>
               </div>
             </div>
           </motion.div>
-
-          {/* ── Bottom Logout (mobile fallback) ───────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.1, ease: 'easeOut' }}
-            className="mt-4 sm:hidden"
-          >
-            <button
-              type="button"
-              onClick={handleLogout}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-medium',
-                'bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800',
-                'text-red-550 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-100 dark:hover:border-red-500/20',
-                'transition-all duration-200 cursor-pointer'
-              )}
-            >
-              <LogOut className="h-4 w-4" />
-              Log Out
-            </button>
-          </motion.div>
         </form>
       </main>
 
-      {/* ── Change Password Modal ──────────────────────────────── */}
+      {/* Password Update Modal */}
       <Modal
         isOpen={showPasswordModal}
-        onClose={() => {
-          setShowPasswordModal(false);
-          setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
-        }}
-        title="Change Password"
-        className="dark:bg-gray-800 dark:border dark:border-gray-700"
+        onClose={() => setShowPasswordModal(false)}
+        title="Ubah Password"
       >
-        <form onSubmit={handleChangePassword} className="space-y-5">
+        <form onSubmit={handleChangePassword} className="space-y-4">
           <PasswordInput
-            id="old-password"
-            label="Current Password"
+            id="oldPassword"
+            label="Password Lama"
             value={passwordForm.oldPassword}
-            onChange={(v) => setPasswordForm((p) => ({ ...p, oldPassword: v }))}
-            placeholder="Enter current password"
+            onChange={(v) => setPasswordForm((prev) => ({ ...prev, oldPassword: v }))}
           />
           <PasswordInput
-            id="new-password"
-            label="New Password"
+            id="newPassword"
+            label="Password Baru"
             value={passwordForm.newPassword}
-            onChange={(v) => setPasswordForm((p) => ({ ...p, newPassword: v }))}
-            placeholder="Min. 8 characters"
+            onChange={(v) => setPasswordForm((prev) => ({ ...prev, newPassword: v }))}
           />
           <PasswordInput
-            id="confirm-password"
-            label="Confirm New Password"
+            id="confirmPassword"
+            label="Konfirmasi Password Baru"
             value={passwordForm.confirmPassword}
-            onChange={(v) => setPasswordForm((p) => ({ ...p, confirmPassword: v }))}
-            placeholder="Repeat new password"
+            onChange={(v) => setPasswordForm((prev) => ({ ...prev, confirmPassword: v }))}
           />
-
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => {
-                setShowPasswordModal(false);
-                setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
-              }}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+              onClick={() => setShowPasswordModal(false)}
+              className="px-4 py-2 border rounded-xl text-sm font-medium hover:bg-slate-50 cursor-pointer text-slate-600 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              Cancel
+              Batal
             </button>
             <button
               type="submit"
               disabled={isChangingPassword}
-              className={cn(
-                'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium',
-                'bg-blue-600 text-white hover:bg-blue-700',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                'transition-all duration-200 cursor-pointer'
-              )}
+              className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
             >
-              {isChangingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isChangingPassword ? 'Changing...' : 'Update Password'}
+              Ubah Password
             </button>
           </div>
         </form>

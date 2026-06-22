@@ -78,6 +78,24 @@ export interface SharedChatData {
   messages: ChatMessage[];
 }
 
+export interface ChatSource {
+  source_id?: string;
+  identifier?: string;
+  title?: string;
+  url?: string;
+  type?: string;
+  relevance_score?: number;
+  snippet?: string;
+}
+
+export interface GraphFact {
+  subject?: string;
+  predicate?: string;
+  object?: string;
+  confidence?: number;
+  source?: string;
+}
+
 export interface ChatMessage {
   id: string;
   chat_id: string;
@@ -90,6 +108,13 @@ export interface ChatMessage {
     file_name?: string;
     file_type?: string;
     file_size?: number;
+    sources?: ChatSource[];
+    graph_facts?: GraphFact[];
+    claims?: string[];
+    evidence?: string[];
+    retrieval_metadata?: Record<string, unknown>;
+    model_metadata?: Record<string, unknown>;
+    safety_note?: string;
   } | null;
   quiz_data: QuizData | null;
   file_context: string | null;
@@ -110,6 +135,10 @@ export interface ChatRequest {
   file_type?: string | null;
   attachment_id?: string | null;
   model_choice?: string | null;
+  // New fields for backend v2 (backward compatible — old fields still sent)
+  persona?: string | null;
+  model_mode?: string | null;
+  request_id?: string;
 }
 
 // --- Model Selection ---

@@ -55,8 +55,10 @@ export function QuizCard({
   };
 
   // Extracts hint from first sentence or safe fallback
+  const explanation = question.explanation;
+  const pembahasan = (question as unknown as Record<string, unknown>).pembahasan as string | undefined;
   const hintText = React.useMemo(() => {
-    const rawExplanation = question.explanation || (question as any).pembahasan;
+    const rawExplanation = explanation || pembahasan;
 
     // Normalize array to string if backend aggregates data inside brackets
     let text = "";
@@ -76,7 +78,7 @@ export function QuizCard({
     return firstSentence && firstSentence.length > 5
       ? `${firstSentence}.`
       : 'Gunakan data senyawa aktif yang terkandung pada objek tanaman ini.';
-  }, [question.explanation, (question as any).pembahasan]);
+  }, [explanation, pembahasan]);
 
   return (
     <div className="space-y-5">

@@ -348,6 +348,7 @@ export type SymptomItem = {
 };
 
 export type HerbEnrichmentDetail = {
+  description?: string;
   traditional_uses?: TraditionalUseItem[];
   preparation_methods?: PreparationMethodItem[];
   usage_guidelines?: UsageGuidelineItem[];
@@ -363,6 +364,7 @@ export type HerbEnrichmentDetail = {
   research_topics?: ResearchTopicItem[];
   claims?: ClaimEvidenceItem[];
   related_symptoms?: SymptomItem[];
+  sources?: SourceReference[];
 };
 
 export type Persona = 'umum' | 'pelajar' | 'peneliti' | 'tenaga_medis';
@@ -483,6 +485,7 @@ export interface HerbalRecommendationResponse {
   limitations?: string[];
   medical_attention_message: string | null;
   metadata: Record<string, unknown>;
+  suggested_terms?: string[];
 }
 
 export class HerbalRecommendationApiError extends Error {

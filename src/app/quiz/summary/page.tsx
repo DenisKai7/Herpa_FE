@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuizStore } from '@/hooks/useQuizStore';
-import { Trophy, Clock, CheckCircle2, XCircle, ArrowRight, RefreshCw, BookOpen, AlertCircle, Award } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle, ArrowRight, RefreshCw, BookOpen, AlertCircle, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function QuizSummary() {
@@ -183,7 +183,7 @@ export default function QuizSummary() {
                   {/* Top Header Card Info */}
                   <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
                     <span className="text-xs font-bold text-gray-400 uppercase">
-                      Pertanyaan {idx + 1}
+                      Pertanyaan {idx + 1} · {(q.question_type ?? 'multiple_choice').replace(/_/g, ' ')}
                     </span>
                     <div className="flex items-center gap-1.5">
                       {isCorrect ? (
@@ -254,13 +254,12 @@ export default function QuizSummary() {
         {/* Action Panel bottom */}
         <div className="flex items-center justify-center gap-4 pt-6">
           <button
-            onClick={() => {
+            onClick={async () => {
               // Reload session for same topic
               if (selectedTopicId) {
                 const { selectTopic, startSession } = useQuizStore.getState();
                 selectTopic(selectedTopicId);
-                const { getQuestionsForTopic } = require('@/lib/quizData');
-                startSession(getQuestionsForTopic(selectedTopicId));
+                await startSession(selectedTopicId);
                 router.push('/quiz/session');
               }
             }}

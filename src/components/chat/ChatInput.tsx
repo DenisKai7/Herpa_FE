@@ -12,6 +12,7 @@ import { MultimodalUploader } from './MultimodalUploader';
 import { ModelSelector } from './ModelSelector';
 import type { AiMode, AttachmentStatus } from '@/types';
 import { MODEL_OPTIONS_BY_MODE } from '@/types';
+import type { ModelMode } from '@/types/model';
 
 interface UploadedFile {
   file: File;
@@ -27,6 +28,7 @@ interface UploadedFile {
 
 interface ChatInputProps {
   aiMode: AiMode;
+  modelMode?: ModelMode;
 }
 
 const ATTACHMENT_STATUS_LABELS: Record<AttachmentStatus, string> = {
@@ -37,21 +39,18 @@ const ATTACHMENT_STATUS_LABELS: Record<AttachmentStatus, string> = {
   failed: 'Gagal diproses · Coba lagi',
 };
 
-export function ChatInput({ aiMode }: ChatInputProps) {
+export function ChatInput({ aiMode, modelMode }: ChatInputProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { sendMessage, cancelSending, isSending, activeSessionId } = useChatStore();
   const [message, setMessage] = useState('');
   const [fileContext, setFileContext] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const [selectedModel, setSelectedModel] = useState(
-    () => MODEL_OPTIONS_BY_MODE[aiMode][0].value
-  );
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [selectedModel, setSelectedModel] = useState('');
+  const options = MODEL_OPTIONS_BY_MODE[aiMode];
+  const activeModel = options.some((o) => o.value === selectedModel) ? selectedModel : options[0].value;
 
-  useEffect(() => {
-    setSelectedModel(MODEL_OPTIONS_BY_MODE[aiMode][0].value);
-  }, [aiMode]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -123,7 +122,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
     } catch {
       toast.error('Gagal mencoba ulang OCR.');
     }
-  }, [uploadedFile?.attachmentId]);
+  }, [uploadedFile]);
 
   const handleSubmit = useCallback(async () => {
     const trimmed = message.trim();
@@ -143,6 +142,9 @@ export function ChatInput({ aiMode }: ChatInputProps) {
     setFileContext(null);
     setUploadedFile(null);
 
+    // Map legacy model value to new model_mode format
+    const modelModeValue = activeModel === 'thinking' ? 'thinking-high' : 'fast-medium';
+
     const chatId = await sendMessage({
       message: trimmed,
       ai_mode: aiMode,
@@ -151,13 +153,15 @@ export function ChatInput({ aiMode }: ChatInputProps) {
       file_name: fileName,
       file_type: fileType,
       attachment_id: attachmentId,
-      model_choice: selectedModel,
+      model_choice: activeModel,
+      persona: aiMode,
+      model_mode: modelMode ?? modelModeValue,
     });
 
     if (isNewChat && chatId && pathname === '/') {
       router.push(`/?chat=${chatId}`, { scroll: false });
     }
-  }, [message, isSending, uploadedFile, aiMode, selectedModel, fileContext, sendMessage, activeSessionId, pathname, router]);
+  }, [message, isSending, uploadedFile, aiMode, activeModel, fileContext, sendMessage, activeSessionId, pathname, router, modelMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -249,7 +253,7 @@ export function ChatInput({ aiMode }: ChatInputProps) {
 
           <ModelSelector
             aiMode={aiMode}
-            selectedModel={selectedModel}
+            selectedModel={activeModel}
             onModelChange={setSelectedModel}
           />
 

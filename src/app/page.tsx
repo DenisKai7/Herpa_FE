@@ -11,6 +11,7 @@ import { useAuthStore } from '@/hooks/useAuthStore';
 import { useChatStore } from '@/hooks/useChatStore';
 import { Spinner } from '@/components/ui/Spinner';
 import type { AiMode } from '@/types';
+import type { ModelMode } from '@/types/model';
 
 export default function HomePage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function HomePage() {
   const { activeSessionId, messages, isSending, fetchSessions } = useChatStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiMode, setAiMode] = useState<AiMode>('umum');
+  const [modelMode, setModelMode] = useState<ModelMode>('fast-medium');
 
   // Initialize auth on mount
   useEffect(() => {
@@ -59,7 +61,7 @@ export default function HomePage() {
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-[#030712] text-gray-900 dark:text-gray-100 transition-colors duration-200">
-      <Header aiMode={aiMode} onAiModeChange={setAiMode} />
+      <Header aiMode={aiMode} onAiModeChange={setAiMode} modelMode={modelMode} onModelModeChange={setModelMode} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           isOpen={sidebarOpen}
@@ -72,7 +74,7 @@ export default function HomePage() {
           </div>
 
           {/* Chat Input */}
-          <ChatInput aiMode={aiMode} />
+          <ChatInput aiMode={aiMode} modelMode={modelMode} />
         </main>
       </div>
     </div>

@@ -5,10 +5,10 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { FileText, ZoomIn, X, Download } from 'lucide-react';
+import { FileText, ZoomIn, X, Download, ExternalLink, Database } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { InteractiveQuiz } from '@/components/quiz/InteractiveQuiz';
-import type { ChatMessage, QuizData } from '@/types';
+import type { ChatMessage, QuizData, ChatSource, GraphFact } from '@/types';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -72,33 +72,34 @@ const extractAttachment = (message: ChatMessage) => {
   // 2. attachments array or object
   const anyMsg = message as unknown as Record<string, unknown>;
   if (anyMsg.attachments) {
-    let atts: any = anyMsg.attachments;
+    let atts: unknown = anyMsg.attachments;
     if (typeof atts === 'string') {
       try {
-        atts = JSON.parse(atts);
+        atts = JSON.parse(atts) as unknown;
       } catch {
         atts = null;
       }
     }
     if (Array.isArray(atts) && atts.length > 0) {
-      const att = atts[0];
-      const url = att.file_url || att.url;
+      const att = atts[0] as Record<string, unknown>;
+      const url = (att.file_url || att.url) as string | undefined;
       if (url) {
         return {
           url,
-          name: att.file_name || att.filename || url.split('/').pop()?.split('?')[0] || 'Attached file',
-          type: att.file_type || att.content_type || att.type || (url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf'),
-          size: att.file_size || att.size || undefined,
+          name: (att.file_name || att.filename || url.split('/').pop()?.split('?')[0] || 'Attached file') as string,
+          type: (att.file_type || att.content_type || att.type || (url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf')) as string,
+          size: (att.file_size || att.size) as number | undefined,
         };
       }
     } else if (atts && typeof atts === 'object') {
-      const url = atts.file_url || atts.url;
+      const attsObj = atts as Record<string, unknown>;
+      const url = (attsObj.file_url || attsObj.url) as string | undefined;
       if (url) {
         return {
           url,
-          name: atts.file_name || atts.filename || url.split('/').pop()?.split('?')[0] || 'Attached file',
-          type: atts.file_type || atts.content_type || atts.type || (url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf'),
-          size: atts.file_size || atts.size || undefined,
+          name: (attsObj.file_name || attsObj.filename || url.split('/').pop()?.split('?')[0] || 'Attached file') as string,
+          type: (attsObj.file_type || attsObj.content_type || attsObj.type || (url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf')) as string,
+          size: (attsObj.file_size || attsObj.size) as number | undefined,
         };
       }
     }
@@ -107,22 +108,23 @@ const extractAttachment = (message: ChatMessage) => {
   // 3. metadata field (can be JSON object or stringified JSON)
   const meta = message.metadata;
   if (meta) {
-    let m: any = meta as unknown as Record<string, unknown>;
+    let m: unknown = meta;
     if (typeof m === 'string') {
       try {
-        m = JSON.parse(m);
+        m = JSON.parse(m) as unknown;
       } catch {
         m = null;
       }
     }
-    if (m) {
-      const urlVal = m.file_url || m.url;
+    if (m && typeof m === 'object') {
+      const mObj = m as Record<string, unknown>;
+      const urlVal = (mObj.file_url || mObj.url) as string | undefined;
       if (urlVal) {
         return {
           url: urlVal,
-          name: m.file_name || m.filename || urlVal.split('/').pop()?.split('?')[0] || 'Attached file',
-          type: m.file_type || m.content_type || m.type || (urlVal.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf'),
-          size: m.file_size || m.size || undefined,
+          name: (mObj.file_name || mObj.filename || urlVal.split('/').pop()?.split('?')[0] || 'Attached file') as string,
+          type: (mObj.file_type || mObj.content_type || mObj.type || (urlVal.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image/jpeg' : 'application/pdf')) as string,
+          size: (mObj.file_size || mObj.size) as number | undefined,
         };
       }
     }
@@ -139,6 +141,71 @@ const sanitizeContent = (content: string) => {
   sanitized = sanitized.replace(/\[Attached medical file\]/gi, '');
   return sanitized.trim();
 };
+
+function dedupeSources(sources: ChatSource[]): ChatSource[] {
+  const seen = new Set<string>();
+  return sources.filter((s) => {
+    const key = s.source_id || s.identifier || s.title || s.url || JSON.stringify(s);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function SourcesPanel({ sources, graphFacts }: { sources?: ChatSource[]; graphFacts?: GraphFact[] }) {
+  const hasSources = sources && sources.length > 0;
+  const hasFacts = graphFacts && graphFacts.length > 0;
+  if (!hasSources && !hasFacts) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+      {hasSources && (
+        <div className="mb-2">
+          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">
+            Sumber ({dedupeSources(sources!).length})
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {dedupeSources(sources!).slice(0, 6).map((src, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800"
+              >
+                {src.url ? (
+                  <a href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline">
+                    <ExternalLink className="w-2.5 h-2.5" />
+                    {src.title || src.identifier || 'Sumber'}
+                  </a>
+                ) : (
+                  <>
+                    <Database className="w-2.5 h-2.5" />
+                    {src.title || src.identifier || 'Knowledge Graph'}
+                  </>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {hasFacts && (
+        <div>
+          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">
+            Fakta Knowledge Graph ({graphFacts!.length})
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {graphFacts!.slice(0, 4).map((fact, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800"
+              >
+                {fact.subject} → {fact.object}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function MessageBubble({ message, index }: MessageBubbleProps) {
   const isUser = message.role === 'user';
@@ -276,6 +343,14 @@ export function MessageBubble({ message, index }: MessageBubbleProps) {
                 {sanitizeContent(message.content)}
               </ReactMarkdown>
             </div>
+          )}
+
+          {/* Sources & Graph Facts (AI messages only) */}
+          {!isUser && message.metadata && (
+            <SourcesPanel
+              sources={(message.metadata as Record<string, unknown>).sources as ChatSource[] | undefined}
+              graphFacts={(message.metadata as Record<string, unknown>).graph_facts as GraphFact[] | undefined}
+            />
           )}
 
           {/* File context indicator */}

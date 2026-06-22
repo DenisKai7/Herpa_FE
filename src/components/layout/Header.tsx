@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut,
@@ -15,16 +14,21 @@ import {
   User,
   Moon,
   Sun,
+  Zap,
+  Brain,
 } from 'lucide-react';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { useAuthStore } from '@/hooks/useAuthStore';
 import { useThemeStore } from '@/hooks/useThemeStore';
 import type { AiMode } from '@/types';
+import type { ModelMode } from '@/types/model';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   aiMode: AiMode;
   onAiModeChange: (mode: AiMode) => void;
+  modelMode?: ModelMode;
+  onModelModeChange?: (mode: ModelMode) => void;
 }
 
 const AI_MODES: { value: AiMode; label: string; icon: React.ReactNode; description: string }[] = [
@@ -215,15 +219,18 @@ function UserDropdown() {
 }
 
 // ─── Header ────────────────────────────────────────────────────────
-export function Header({ aiMode, onAiModeChange }: HeaderProps) {
+export function Header({ aiMode, onAiModeChange, modelMode, onModelModeChange }: HeaderProps) {
   const { user } = useAuthStore();
   const router = useRouter();
   const { theme, toggleTheme } = useThemeStore();
 
-  const currentRole = user?.role;
-  const isStudent = user?.role?.toLowerCase() === 'pelajar' || currentRole?.toLowerCase() === 'pelajar';
-
   const currentMode = AI_MODES.find((m) => m.value === aiMode) || AI_MODES[0];
+
+  const MODEL_MODES = [
+    { value: 'fast-medium' as ModelMode, label: 'Fast', icon: <Zap className="h-3.5 w-3.5" />, description: 'Respons cepat' },
+    { value: 'thinking-high' as ModelMode, label: 'Thinking', icon: <Brain className="h-3.5 w-3.5" />, description: 'Analisis mendalam' },
+  ];
+  const currentModelMode = MODEL_MODES.find((m) => m.value === (modelMode ?? 'fast-medium')) || MODEL_MODES[0];
 
   return (
     <header className="h-14 border-b border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-between px-4 lg:px-6 shrink-0 transition-colors duration-200">
@@ -237,8 +244,8 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
         </span>
       </div>
 
-      {/* Center: AI Persona Selector */}
-      <div className="flex items-center">
+      {/* Center: AI Persona Selector + Model Mode */}
+      <div className="flex items-center gap-2">
         <Dropdown
           trigger={
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
@@ -266,6 +273,24 @@ export function Header({ aiMode, onAiModeChange }: HeaderProps) {
           }))}
           menuClassName="dark:bg-gray-800 dark:border-gray-700"
         />
+        {/* Model Mode Toggle */}
+        {onModelModeChange && (
+          <button
+            onClick={() =>
+              onModelModeChange(modelMode === 'thinking-high' ? 'fast-medium' : 'thinking-high')
+            }
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer border',
+              modelMode === 'thinking-high'
+                ? 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            )}
+            title={currentModelMode.description}
+          >
+            {currentModelMode.icon}
+            <span className="hidden sm:inline">{currentModelMode.label}</span>
+          </button>
+        )}
       </div>
 
       {/* Right: Admin button + User Menu */}
