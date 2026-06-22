@@ -20,17 +20,30 @@ import {
   canShowClinicalDose,
   dedupeSources,
   formatPercent,
+  getApiErrorMessage,
   getEvidenceLabel,
-  getSafetyLabel,
+  getHerbRecommendationDetail,
   getVerificationLabel,
   HerbalCandidate,
   HerbalRecommendationApiError,
   HerbalRecommendationResponse,
+  HerbEnrichmentDetail,
   RecommendationStatus,
   VerificationSource,
 } from '@/lib/api/herbalRecommendation';
+import {
+  getRelevanceBadgeText,
+  getRelevanceLevel,
+  getRelevancePercent,
+  getDataStatusLabel,
+  getSafetyLabelV2,
+  getEvidenceLabelV2,
+  getSymptomPercent,
+  resolveHerbId,
+  formatSafetyFieldStatus,
+} from '@/lib/herbalRecommendationNormalize';
 
-const emptyText = 'Informasi ini tidak ditampilkan karena belum lolos verifikasi.';
+const emptyText = 'Informasi belum tersedia pada knowledge graph.';
 const medicalDisclaimer = 'Informasi ini bersifat edukatif dan bukan diagnosis atau pengganti tenaga kesehatan.';
 
 type DetailTab = 'ringkasan' | 'tradisional' | 'pengolahan' | 'aturan' | 'peringatan' | 'sumber' | 'lanjutan';
@@ -84,21 +97,6 @@ function uniqueCandidates(candidates: HerbalCandidate[]) {
     if (!map.has(key)) map.set(key, candidate);
   }
   return Array.from(map.values()).sort((a, b) => (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0) || (a.scientific_name || a.local_name).localeCompare(b.scientific_name || b.local_name));
-}
-
-function formatEvidenceLevel(value?: string, label?: string) {
-  if (label) return label;
-  const labels: Record<string, string> = {
-    traditional: 'Penggunaan tradisional',
-    phytochemical_screening: 'Skrining fitokimia',
-    in_vitro: 'Bukti in-vitro',
-    in_vivo: 'Bukti in-vivo',
-    clinical: 'Bukti klinis',
-    systematic_review: 'Tinjauan sistematis',
-    data_not_available: 'Data bukti belum tersedia',
-    insufficient_evidence: 'Bukti masih terbatas',
-  };
-  return value ? labels[value] ?? 'Data bukti belum tersedia' : 'Data bukti belum tersedia';
 }
 
 function asArray<T>(value?: T[] | null): T[] {
@@ -186,7 +184,7 @@ function getVerificationSourceFromCandidate(candidate: HerbalCandidate): Verific
   return 'unavailable';
 }
 
-function renderVerificationBadge(source: VerificationSource) {
+function renderVerificationBadge(source: VerificationSource, candidate?: HerbalCandidate) {
   const styles: Record<string, string> = {
     knowledge_graph: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800/40',
     trusted_source: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40',
@@ -204,19 +202,19 @@ function renderVerificationBadge(source: VerificationSource) {
     graph_and_model: 'Knowledge Graph + Validasi AI',
     model_assisted: 'Panduan umum berbantuan AI',
     safety_rule: 'Aturan keselamatan',
-    unavailable: 'Data belum dapat dipastikan',
+    unavailable: candidate ? getDataStatusLabel(candidate) : 'Data masih terbatas',
     graph_verified: 'Terverifikasi Knowledge Graph',
     graph_model_verified: 'Knowledge Graph + Validasi AI',
   };
   return (
     <span className={cn('text-[9px] font-black px-2 py-1 rounded-full', styles[source] || styles.unavailable)}>
-      {labels[source] || labels.unavailable}
+      {labels[source] || (candidate ? getDataStatusLabel(candidate) : 'Data masih terbatas')}
     </span>
   );
 }
 
 function renderRelevanceBadge(candidate: HerbalCandidate) {
-  const level = candidate.relevance_level ?? 'unknown';
+  const level = getRelevanceLevel(candidate);
   const styles: Record<string, string> = {
     high: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800/40',
     medium: 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40',
@@ -225,7 +223,7 @@ function renderRelevanceBadge(candidate: HerbalCandidate) {
   };
   return (
     <span className={cn('text-[9px] font-black px-2 py-1 rounded-full', styles[level] ?? styles.unknown)}>
-      {candidate.relevance_label ?? 'Relevansi belum tersedia'} ({formatPercent(candidate.symptom_coverage)})
+      {getRelevanceBadgeText(candidate)}
     </span>
   );
 }
@@ -243,7 +241,7 @@ function renderSafetyStatusBadge(candidate: HerbalCandidate) {
   };
   return (
     <span className={cn('text-[9px] font-black px-2 py-1 rounded-full', styles[status] ?? styles.unknown)}>
-      {getSafetyLabel(status, candidate.safety_label)}
+      {getSafetyLabelV2(candidate)}
     </span>
   );
 }
@@ -252,16 +250,16 @@ function formatAvailabilityLabel(candidate: HerbalCandidate) {
   const fv = candidate.field_verifications?.find(f => f.field_name === 'availability');
   if (fv) {
     if (fv.verification_source === 'graph_verified') {
-      return 'Ketersediaan terverifikasi Knowledge Graph';
+      return 'Penyimpanan terverifikasi Knowledge Graph';
     }
     if (fv.verification_source === 'model_assisted') {
-      return 'Perkiraan ketersediaan berbantuan AI';
+      return 'Perkiraan penyimpanan berbantuan AI';
     }
   }
   if (candidate.availability === 'unknown') {
-    return 'Ketersediaan belum dapat dipastikan';
+    return 'Informasi penyimpanan belum tercatat pada knowledge graph';
   }
-  return candidate.availability_label || 'Ketersediaan belum dapat dipastikan';
+  return candidate.availability_label || 'Informasi penyimpanan belum tercatat pada knowledge graph';
 }
 
 export default function HerbalRecommendationPage() {
@@ -274,8 +272,36 @@ export default function HerbalRecommendationPage() {
   const [activeTab, setActiveTab] = useState<DetailTab>('ringkasan');
   const [persona, setPersona] = useState<Persona>('umum');
 
+  // Lazy detail state
+  const [detailByHerbId, setDetailByHerbId] = useState<Record<string, HerbEnrichmentDetail>>({});
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [detailErrorByHerbId, setDetailErrorByHerbId] = useState<Record<string, string>>({});
+
   const recommendations = uniqueCandidates(response?.recommendations ?? []);
   const isLoading = ['validating', 'analyzing_symptoms', 'searching_graph', 'checking_safety', 'ranking'].includes(status);
+
+  const handleOpenDetail = async (item: HerbalCandidate) => {
+    setActiveTab('ringkasan');
+    setSelectedPlant(item);
+
+    const herbId = resolveHerbId(item);
+    if (!herbId) return;
+    if (detailByHerbId[herbId]) return; // already cached
+
+    try {
+      setDetailLoadingId(herbId);
+      setDetailErrorByHerbId((prev) => ({ ...prev, [herbId]: '' }));
+      const detail = await getHerbRecommendationDetail(herbId);
+      setDetailByHerbId((prev) => ({ ...prev, [herbId]: detail }));
+    } catch (error) {
+      setDetailErrorByHerbId((prev) => ({
+        ...prev,
+        [herbId]: getApiErrorMessage(error),
+      }));
+    } finally {
+      setDetailLoadingId(null);
+    }
+  };
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -521,10 +547,7 @@ export default function HerbalRecommendationPage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.04 }}
                           whileHover={{ scale: 1.02 }}
-                          onClick={() => {
-                            setActiveTab('ringkasan');
-                            setSelectedPlant(plant);
-                          }}
+                          onClick={() => handleOpenDetail(plant)}
                           className="bg-white dark:bg-gray-900 border-2 border-green-500 rounded-2xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer text-left select-none flex flex-col justify-between h-full"
                         >
                           <div>
@@ -532,15 +555,15 @@ export default function HerbalRecommendationPage() {
                               <span className="text-3xl">{plantIcon(plant)}</span>
                               <div className="min-w-0 flex-1">
                                 <h4 className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">{plant.local_name}</h4>
-                                <p className="text-[10px] text-gray-400 dark:text-gray-500 italic truncate mt-0.5">{plant.scientific_name || emptyText}</p>
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500 italic truncate mt-0.5">{plant.scientific_name || 'Nama ilmiah belum tersedia'}</p>
                               </div>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-1.5">
-                              {renderVerificationBadge(verifSource)}
+                              {renderVerificationBadge(verifSource, plant)}
                               {renderRelevanceBadge(plant)}
                               {renderSafetyStatusBadge(plant)}
                               <span className="text-[9px] font-black px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
-                                {formatEvidenceLevel(plant.evidence_level, plant.evidence_label)}
+                                {getEvidenceLabelV2(plant)}
                               </span>
                             </div>
                             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 line-clamp-3">
@@ -549,9 +572,9 @@ export default function HerbalRecommendationPage() {
                           </div>
                           <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800/60 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <p className="text-[10px] text-gray-400">Score {formatPercent(plant.recommendation_score)}</p>
-                              {(plant.symptom_coverage ?? 0) > 0 && (
-                                <p className="text-[10px] text-gray-400">| Gejala {formatPercent(plant.symptom_coverage)}</p>
+                              <p className="text-[10px] text-gray-400">Score {getRelevancePercent(plant)}%</p>
+                              {getSymptomPercent(plant) > 0 && (
+                                <p className="text-[10px] text-gray-400">| Gejala {getSymptomPercent(plant)}%</p>
                               )}
                             </div>
                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Detail &rarr;</p>
@@ -573,10 +596,65 @@ export default function HerbalRecommendationPage() {
                   <p>
                     Belum tersedia rekomendasi dengan data penggunaan dan keamanan yang sepenuhnya terverifikasi untuk keluhan ini.
                   </p>
+                  {asArray((response as HerbalRecommendationResponse & { suggested_terms?: string[] })?.suggested_terms).length > 0 && (
+                    <div>
+                      <p className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Coba gunakan istilah lain seperti:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {((response as HerbalRecommendationResponse & { suggested_terms?: string[] })?.suggested_terms ?? []).map((term) => (
+                          <li key={term}>{term}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={resetSearch} className="px-3 py-2 rounded-xl bg-green-600 text-white text-xs font-bold">Cari ulang</button>
-                    <button onClick={() => setResponse(null)} className="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold">Ubah keluhan</button>
-                    <button onClick={() => router.push('/')} className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold">Lihat informasi umum non-rekomendasi</button>
+                    <button onClick={resetSearch} className="px-3 py-2 rounded-xl bg-green-600 text-white text-xs font-bold cursor-pointer">Cari ulang</button>
+                    <button onClick={() => setResponse(null)} className="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold cursor-pointer">Ubah keluhan</button>
+                    <button onClick={() => router.push('/')} className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold cursor-pointer">Lihat informasi umum non-rekomendasi</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state: completed but no recommendations */}
+              {response && !isLoading && recommendations.length === 0 && !['no_safe_candidate', 'no_fully_verified_candidate', 'clarification_required', 'medical_attention_recommended'].includes(response.status) && (
+                <div className="max-w-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 text-sm text-gray-600 dark:text-gray-300 space-y-4">
+                  <div className="text-center space-y-2">
+                    <div className="mx-auto h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                      <Search className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <h4 className="font-bold text-gray-800 dark:text-gray-200">Belum ditemukan rekomendasi herbal yang cukup relevan untuk keluhan ini.</h4>
+                  </div>
+
+                  {(response.warnings?.length ?? 0) > 0 && (
+                    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-100 dark:border-yellow-900/40 p-3 rounded-xl">
+                      <ul className="list-disc pl-4 space-y-1 text-yellow-800 dark:text-yellow-200">
+                        {response.warnings?.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {(response.limitations?.length ?? 0) > 0 && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                      {response.limitations?.map((l, i) => <p key={i}>{l}</p>)}
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Coba gunakan istilah lain seperti:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {((response as HerbalRecommendationResponse & { suggested_terms?: string[] })?.suggested_terms ?? [
+                        'sariawan',
+                        'luka mulut',
+                        'iritasi tenggorokan',
+                        'tenggorokan panas',
+                      ]).map((term) => (
+                        <li key={term}>{term}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button onClick={resetSearch} className="px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-bold cursor-pointer">Cari ulang</button>
+                    <button onClick={() => { setResponse(null); setError(null); setStatus('idle'); }} className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold cursor-pointer">Ubah keluhan</button>
                   </div>
                 </div>
               )}
@@ -587,22 +665,58 @@ export default function HerbalRecommendationPage() {
 
       <AnimatePresence>
         {selectedPlant && (() => {
+          const herbId = resolveHerbId(selectedPlant);
+          const loadedDetail = herbId ? detailByHerbId[herbId] : null;
+          const isDetailLoading = herbId ? detailLoadingId === herbId : false;
+          const detailError = herbId ? detailErrorByHerbId[herbId] ?? '' : '';
+
           const prepFv = selectedPlant.field_verifications?.find(f => f.field_name === 'preparation_method');
           const isPrepGraph = prepFv?.verification_source === 'graph_verified';
           const isPrepModel = prepFv?.verification_source === 'model_assisted';
 
           const usageFv = selectedPlant.field_verifications?.find(f => f.field_name === 'usage_rule');
           const isUsageModel = usageFv?.verification_source === 'model_assisted';
-          const traditionalUses = [...asArray(selectedPlant.traditional_uses), ...asArray(selectedPlant.enrichment?.traditional_uses)];
-          const preparationMethods = [...asArray(selectedPlant.preparation_methods), ...asArray(selectedPlant.enrichment?.preparation_methods)];
-          const usageGuidelines = [...asArray(selectedPlant.usage_guidelines), ...asArray(selectedPlant.enrichment?.usage_guidelines)];
-          const safetyWarnings = [...asArray(selectedPlant.safety_warnings), ...asArray(selectedPlant.enrichment?.safety_warnings)];
-          const drugInteractions = [...asArray(selectedPlant.drug_interactions), ...asArray(selectedPlant.enrichment?.drug_interactions)];
-          const contraindications = [...asArray(selectedPlant.contraindications), ...asArray(selectedPlant.enrichment?.contraindications)];
-          const plantParts = candidatePlantParts(selectedPlant);
+
+          // Merge: prefer lazy detail over analyze data
+          const mergeArr = <T,>(detailArr?: T[] | null, candidateArr?: T[] | null): T[] => {
+            const d = asArray(detailArr);
+            return d.length > 0 ? d : asArray(candidateArr);
+          };
+
+          const traditionalUses = mergeArr(
+            loadedDetail?.traditional_uses,
+            [...asArray(selectedPlant.traditional_uses), ...asArray(selectedPlant.enrichment?.traditional_uses)],
+          );
+          const preparationMethods = mergeArr(
+            loadedDetail?.preparation_methods,
+            [...asArray(selectedPlant.preparation_methods), ...asArray(selectedPlant.enrichment?.preparation_methods)],
+          );
+          const usageGuidelines = mergeArr(
+            loadedDetail?.usage_guidelines,
+            [...asArray(selectedPlant.usage_guidelines), ...asArray(selectedPlant.enrichment?.usage_guidelines)],
+          );
+          const safetyWarnings = mergeArr(
+            loadedDetail?.safety_warnings,
+            [...asArray(selectedPlant.safety_warnings), ...asArray(selectedPlant.enrichment?.safety_warnings)],
+          );
+          const drugInteractions = mergeArr(
+            loadedDetail?.drug_interactions,
+            [...asArray(selectedPlant.drug_interactions), ...asArray(selectedPlant.enrichment?.drug_interactions)],
+          );
+          const contraindications = mergeArr(
+            loadedDetail?.contraindications,
+            [...asArray(selectedPlant.contraindications), ...asArray(selectedPlant.enrichment?.contraindications)],
+          );
+          const detailPlantParts = asArray(loadedDetail?.plant_parts);
+          const plantParts = detailPlantParts.length > 0
+            ? detailPlantParts.map(p => p.name).filter(Boolean) as string[]
+            : candidatePlantParts(selectedPlant);
           const relatedSymptoms = candidateRelatedSymptoms(selectedPlant);
           const sources = nestedSources(selectedPlant);
-          const storageGuidelines = [...asArray(selectedPlant.storage_guidelines), ...asArray(selectedPlant.enrichment?.storage_guidelines)];
+          const storageGuidelines = mergeArr(
+            loadedDetail?.storage_guidelines,
+            [...asArray(selectedPlant.storage_guidelines), ...asArray(selectedPlant.enrichment?.storage_guidelines)],
+          );
           const mythFacts = [...asArray(selectedPlant.myth_facts), ...asArray(selectedPlant.enrichment?.myth_facts)];
           const qualityStandards = [...asArray(selectedPlant.quality_standards), ...asArray(selectedPlant.enrichment?.quality_standards)];
           const clinicalGuidelines = [...asArray(selectedPlant.clinical_guidelines), ...asArray(selectedPlant.enrichment?.clinical_guidelines)];
@@ -632,12 +746,12 @@ export default function HerbalRecommendationPage() {
                     <span className="text-3xl">{plantIcon(selectedPlant)}</span>
                     <div className="min-w-0">
                       <h3 className="font-bold text-base text-gray-900 dark:text-gray-50 leading-tight truncate">{selectedPlant.local_name}</h3>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5 truncate">{selectedPlant.scientific_name || emptyText}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5 truncate">{selectedPlant.scientific_name || 'Nama ilmiah belum tersedia'}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {renderVerificationBadge(getVerificationSourceFromCandidate(selectedPlant))}
+                        {renderVerificationBadge(getVerificationSourceFromCandidate(selectedPlant), selectedPlant)}
                         {renderRelevanceBadge(selectedPlant)}
                         {renderSafetyStatusBadge(selectedPlant)}
-                        <span className="text-[9px] font-black px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">{formatEvidenceLevel(selectedPlant.evidence_level, selectedPlant.evidence_label)}</span>
+                        <span className="text-[9px] font-black px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">{getEvidenceLabelV2(selectedPlant)}</span>
                       </div>
                     </div>
                   </div>
@@ -650,6 +764,20 @@ export default function HerbalRecommendationPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Detail loading indicator */}
+                  {isDetailLoading && (
+                    <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/40 p-3 rounded-xl">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Memuat detail dari knowledge graph...
+                    </div>
+                  )}
+
+                  {detailError && (
+                    <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 p-3 rounded-xl">
+                      {detailError}
+                    </div>
+                  )}
+
                   <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
                     <p>{selectedPlant.explanation || selectedPlant.recommendation_reason || 'Alasan rekomendasi belum tersedia pada data saat ini.'}</p>
                     <div>
@@ -686,7 +814,7 @@ export default function HerbalRecommendationPage() {
                       </div>
                     )}
                     <div>
-                      <span className="font-black text-gray-500 uppercase tracking-wider">Ketersediaan: </span>
+                      <span className="font-black text-gray-500 uppercase tracking-wider">Penyimpanan/Ketersediaan data: </span>
                       {formatAvailabilityLabel(selectedPlant)}
                     </div>
                   </div>
@@ -718,13 +846,13 @@ export default function HerbalRecommendationPage() {
                     <div className="space-y-3 text-xs text-gray-600 dark:text-gray-300">
                       <div className="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-2">
                         <p><span className="font-bold">Tanaman:</span> {selectedPlant.local_name}</p>
-                        <p><span className="font-bold">Nama ilmiah:</span> {selectedPlant.scientific_name || emptyText}</p>
-                        <p><span className="font-bold">Score:</span> {formatPercent(selectedPlant.recommendation_score)}</p>
-                        <p><span className="font-bold">Relevansi:</span> {selectedPlant.relevance_label ?? 'Relevansi belum tersedia'} ({formatPercent(selectedPlant.symptom_coverage)})</p>
+                        <p><span className="font-bold">Nama ilmiah:</span> {selectedPlant.scientific_name || 'Nama ilmiah belum tersedia'}</p>
+                        <p><span className="font-bold">Score:</span> {getRelevancePercent(selectedPlant)}%</p>
+                        <p><span className="font-bold">Relevansi:</span> {getRelevanceBadgeText(selectedPlant)}</p>
                         <p><span className="font-bold">Alasan:</span> {selectedPlant.explanation || selectedPlant.recommendation_reason || 'Alasan rekomendasi belum tersedia.'}</p>
                         <p><span className="font-bold">Gejala terkait:</span> {relatedSymptoms.length ? relatedSymptoms.join(', ') : emptyText}</p>
                         <p><span className="font-bold">Senyawa terkait:</span> {selectedPlant.active_compounds?.length ? selectedPlant.active_compounds.join(', ') : emptyText}</p>
-                        <p><span className="font-bold">Bagian tanaman:</span> {plantParts.length ? plantParts.join(', ') : emptyText}</p>
+                        <p><span className="font-bold">Bagian tanaman:</span> {plantParts.length ? plantParts.join(', ') : (isDetailLoading ? 'Memuat data...' : 'Bagian tanaman belum tersedia pada knowledge graph.')}</p>
                       </div>
                       <p className="text-[11px] text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 p-3 rounded-xl">{response?.general_disclaimer || medicalDisclaimer}</p>
                     </div>
@@ -757,7 +885,7 @@ export default function HerbalRecommendationPage() {
                             Sumber: {isPrepGraph ? 'Terverifikasi Knowledge Graph' : 'Panduan umum berbantuan AI'}
                           </p>
                           <p className="text-gray-500 dark:text-gray-400 mt-0.5">
-                            Status: {isPrepGraph ? 'Terverifikasi Knowledge Graph' : 'Belum terverifikasi Knowledge Graph'}
+                            Status: {isPrepGraph ? 'Terverifikasi' : 'Belum terverifikasi'}
                           </p>
                           {isPrepModel && (
                             <p className="text-amber-600 dark:text-amber-400 mt-2 font-medium">
@@ -771,28 +899,34 @@ export default function HerbalRecommendationPage() {
                         const methodType = 'preparation_type' in method ? method.preparation_type : method.method_type;
                         const ingredients = (Array.isArray(method.ingredients) ? method.ingredients : []).map((i) => typeof i === 'string' ? i : `${i.name}${i.amount_text ? ` (${i.amount_text})` : ''}`);
                         const formulations = 'formulations' in method ? asArray(method.formulations) : [];
-                        const steps = Array.isArray(method.steps) && method.steps.length ? method.steps : [emptyText];
+                        const steps = Array.isArray(method.steps) && method.steps.length ? method.steps : [];
                         return (
                           <div key={id || methodIdx} className="space-y-3 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
                             <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider">{method.title}</h4>
                             {methodType && <p className="text-xs text-gray-500">Jenis: {methodType}</p>}
-                            <p className="text-xs text-gray-500">Bagian tanaman: {method.plant_part || emptyText}</p>
+                            <p className="text-xs text-gray-500">Bagian tanaman: {method.plant_part || 'Belum tercatat'}</p>
                             <p className="text-xs text-gray-500">Bahan: {ingredients.length ? ingredients.join(', ') : 'Takaran terstandar belum tersedia pada database.'}</p>
                             {formulations.length > 0 && <p className="text-xs text-gray-500">Formulasi: {formulations.join(', ')}</p>}
                             {'notes' in method && method.notes && <p className="text-xs text-gray-500">Catatan: {method.notes}</p>}
                             {'verification_status' in method && <p className="text-xs text-gray-500">Status: {getVerificationLabel(method.verification_status)}</p>}
-                            <ol className="space-y-2.5">
-                              {steps.map((step, idx) => (
-                                <li key={`${id || methodIdx}-${idx}`} className="flex gap-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                                  <span className="w-5 h-5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
-                                  <span>{step}</span>
-                                </li>
-                              ))}
-                            </ol>
+                            {steps.length > 0 ? (
+                              <ol className="space-y-2.5">
+                                {steps.map((step, idx) => (
+                                  <li key={`${id || methodIdx}-${idx}`} className="flex gap-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                                    <span className="w-5 h-5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                                    <span>{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            ) : (
+                              <p className="text-xs text-gray-400 italic">Langkah pengolahan belum tercatat.</p>
+                            )}
                           </div>
                         );
                       }) : (
-                        <p className="text-gray-400 italic text-xs">Cara pengolahan belum tersedia untuk kandidat ini.</p>
+                        isDetailLoading
+                          ? <p className="text-gray-400 italic text-xs flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Memuat cara pengolahan dari knowledge graph...</p>
+                          : <p className="text-gray-400 italic text-xs">Cara pengolahan belum tercatat pada knowledge graph untuk kandidat ini.</p>
                       )}
                     </div>
                   )}
@@ -804,35 +938,39 @@ export default function HerbalRecommendationPage() {
                           Dosis khusus tidak tersedia dari knowledge graph. Gunakan produk terstandar sesuai label atau konsultasikan dengan farmasis.
                         </div>
                       )}
-                      <div className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs">
-                        <p className="font-bold text-gray-800 dark:text-gray-200">
-                          Sumber: {isUsageModel ? 'Panduan umum berbantuan AI' : 'Terverifikasi Knowledge Graph'}
-                        </p>
-                        <p className="text-gray-500 dark:text-gray-400 mt-0.5">
-                          Status: {isUsageModel ? 'Belum terverifikasi Knowledge Graph' : 'Terverifikasi Knowledge Graph'}
-                        </p>
-                      </div>
+                      {usageFv && (
+                        <div className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs">
+                          <p className="font-bold text-gray-800 dark:text-gray-200">
+                            Sumber: {isUsageModel ? 'Panduan umum berbantuan AI' : 'Knowledge Graph'}
+                          </p>
+                          <p className="text-gray-500 dark:text-gray-400 mt-0.5">
+                            Status: {isUsageModel ? 'Belum terverifikasi' : 'Terverifikasi'}
+                          </p>
+                        </div>
+                      )}
                       {usageGuidelines.map((guide, idx) => (
                         <div key={guide.id || idx} className="space-y-2 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300">
                           <div className="flex gap-2.5 items-start"><ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /><span className="font-bold">{guide.title || 'Aturan pakai edukatif'}</span></div>
                           {guide.description && <p>{guide.description}</p>}
-                          <p>Frekuensi: {guide.frequency_text || emptyText}</p>
-                          <p>Durasi: {guide.duration_text || emptyText}</p>
-                          <p>Status dosis: {guide.dose_status || 'not_clinically_established'}</p>
-                          <p>Status: {getVerificationLabel(guide.verification_status)}</p>
+                          {guide.frequency_text && <p>Frekuensi: {guide.frequency_text}</p>}
+                          {guide.duration_text && <p>Durasi: {guide.duration_text}</p>}
+                          {guide.dose_status && <p>Status dosis: {guide.dose_status}</p>}
+                          {guide.verification_status && <p>Status: {getVerificationLabel(guide.verification_status)}</p>}
                         </div>
                       ))}
                       {selectedPlant.usage_rules?.length ? selectedPlant.usage_rules.map((rule, idx) => (
                         <div key={idx} className="space-y-2 bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-300">
-                          <div className="flex gap-2.5 items-start"><ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /><span>Bentuk: {rule.form || emptyText}</span></div>
-                          <p>Jumlah: {canShowClinicalDose(persona) ? (rule.amount_text || emptyText) : 'Dosis klinis detail tidak ditampilkan untuk penggunaan mandiri. Gunakan sesuai batas wajar dan konsultasikan kepada tenaga kesehatan bila memiliki kondisi khusus.'}</p>
-                          <p>Frekuensi: {rule.frequency_text}</p>
-                          <p>Durasi: {rule.duration_text || emptyText}</p>
-                          <p>Catatan: {rule.administration_notes.length ? rule.administration_notes.join(', ') : emptyText}</p>
+                          <div className="flex gap-2.5 items-start"><ShieldCheck className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /><span>Bentuk: {rule.form || 'Belum tercatat'}</span></div>
+                          <p>Jumlah: {canShowClinicalDose(persona) ? (rule.amount_text || 'Belum tercatat') : 'Dosis klinis detail tidak ditampilkan untuk penggunaan mandiri. Gunakan sesuai batas wajar dan konsultasikan kepada tenaga kesehatan bila memiliki kondisi khusus.'}</p>
+                          {rule.frequency_text && <p>Frekuensi: {rule.frequency_text}</p>}
+                          {rule.duration_text && <p>Durasi: {rule.duration_text}</p>}
+                          {rule.administration_notes.length > 0 && <p>Catatan: {rule.administration_notes.join(', ')}</p>}
                         </div>
                       )) : null}
                       {!usageGuidelines.length && !selectedPlant.usage_rules?.length && (
-                        <p className="text-gray-400 italic text-xs">Aturan pakai belum tersedia pada knowledge graph. Gunakan informasi herbal secara hati-hati dan konsultasikan dengan tenaga kesehatan bila gejala menetap.</p>
+                        isDetailLoading
+                          ? <p className="text-gray-400 italic text-xs flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Memuat aturan pakai dari knowledge graph...</p>
+                          : <p className="text-gray-400 italic text-xs">Aturan pakai spesifik belum tercatat pada knowledge graph. Gunakan informasi herbal secara hati-hati dan konsultasikan dengan tenaga kesehatan bila gejala menetap.</p>
                       )}
                     </div>
                   )}
@@ -883,23 +1021,28 @@ export default function HerbalRecommendationPage() {
                           )}
 
                           <div>
-                            <span className="font-bold">Kontraindikasi ({selectedPlant.contraindication_status?.status || 'missing'}):</span>
-                            <p>{contraindications.length ? contraindications.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}</p>
+                            <span className="font-bold">Kontraindikasi ({formatSafetyFieldStatus(selectedPlant.contraindication_status?.status)}):</span>
+                            <p>{contraindications.length ? contraindications.map(textFromUnknown).filter(Boolean).join(', ') : 'Belum ada kontraindikasi spesifik yang tercatat pada knowledge graph.'}</p>
                           </div>
                           <div>
-                            <span className="font-bold">Interaksi ({selectedPlant.interaction_status?.status || 'missing'}):</span>
-                            <p>{selectedPlant.interactions?.length ? selectedPlant.interactions.join(', ') : drugInteractions.length ? drugInteractions.map(textFromUnknown).filter(Boolean).join(', ') : emptyText}</p>
+                            <span className="font-bold">Interaksi ({formatSafetyFieldStatus(selectedPlant.interaction_status?.status)}):</span>
+                            <p>{selectedPlant.interactions?.length ? selectedPlant.interactions.join(', ') : drugInteractions.length ? drugInteractions.map(textFromUnknown).filter(Boolean).join(', ') : 'Belum ada interaksi spesifik yang tercatat pada knowledge graph.'}</p>
                           </div>
                           <div>
-                            <span className="font-bold">Kelompok berisiko ({selectedPlant.risk_group_status?.status || 'missing'}):</span>
-                            <p>{selectedPlant.risk_groups?.length ? selectedPlant.risk_groups.join(', ') : emptyText}</p>
+                            <span className="font-bold">Kelompok berisiko ({formatSafetyFieldStatus(selectedPlant.risk_group_status?.status)}):</span>
+                            <p>{selectedPlant.risk_groups?.length ? selectedPlant.risk_groups.join(', ') : 'Belum ada kelompok berisiko spesifik yang tercatat pada knowledge graph.'}</p>
                           </div>
                           <div>
-                            <span className="font-bold">Efek samping ({selectedPlant.side_effect_status?.status || 'missing'}):</span>
-                            <p>{selectedPlant.side_effects?.length ? selectedPlant.side_effects.join(', ') : emptyText}</p>
+                            <span className="font-bold">Efek samping ({formatSafetyFieldStatus(selectedPlant.side_effect_status?.status)}):</span>
+                            <p>{selectedPlant.side_effects?.length ? selectedPlant.side_effects.join(', ') : 'Belum ada efek samping spesifik yang tercatat pada knowledge graph.'}</p>
                           </div>
                         </div>
                       </div>
+
+                      <p className="text-[11px] text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 p-3 rounded-xl">
+                        {medicalDisclaimer}
+                      </p>
+
                       {!safetyWarnings.length && !selectedPlant.warnings?.length && !contraindications.length && !drugInteractions.length && (
                         <p className="text-gray-400 italic">Belum ada peringatan spesifik pada knowledge graph. Tetap berhati-hati bila sedang hamil, menyusui, memiliki penyakit kronis, atau menggunakan obat rutin.</p>
                       )}

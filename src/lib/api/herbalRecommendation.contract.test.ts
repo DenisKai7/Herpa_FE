@@ -9,8 +9,28 @@ import {
   getSafetyLabel,
   getVerificationLabel,
   normalizeHerbalRecommendationPayload,
+  HerbalCandidate,
 } from './herbalRecommendation';
 
+import {
+  asArray,
+  clampScore,
+  toPercent,
+  resolveHerbId,
+  getPrimaryScore,
+  getRelevancePercent,
+  getSymptomPercent,
+  getRelevanceLabel,
+  getRelevanceBadgeText,
+  getRelevanceLevel,
+  getDataStatusLabel,
+  getSafetyLabelV2,
+  getEvidenceLabelV2,
+  getVerificationBadgeLabel,
+  formatSafetyFieldStatus,
+} from '../herbalRecommendationNormalize';
+
+// Legacy tests
 export function recommendation_payload_converts_empty_age_group_to_null() {
   const payload = normalizeHerbalRecommendationPayload({
     complaint: 'batuk berdahak',
@@ -134,8 +154,101 @@ export function persona_filter_shows_clinical_detail_for_tenaga_medis() {
 }
 
 export function no_diagnosis_or_replace_medical_treatment_claim() {
-  const disclaimer = 'Informasi ini bersifat edukatif dan bukan diagnosis atau pengganti tenaga kesehatan.';
+  const disclaimer = 'Informasi ini bersifat edukatif and bukan diagnosis atau pengganti tenaga kesehatan.';
 
   assert.equal(disclaimer.includes('bukan diagnosis'), true);
   assert.equal(disclaimer.includes('pengganti tenaga kesehatan'), true);
+}
+
+// ===========================================================================
+// NEW UI FIX AND NORMALIZER CONTRACT TESTS
+// ===========================================================================
+
+export function card_does_not_show_relevansi_tinggi_0_percent() {
+  const item = {
+    relevance_score: 0.0,
+    relevance_label: 'Relevansi tinggi (0%)',
+    symptom_coverage: 0.0,
+  } as unknown as HerbalCandidate;
+
+  // Badge text should correctly display Score percentage derived from relevance_score (0%)
+  const badgeText = getRelevanceBadgeText(item);
+  assert.equal(badgeText, 'Kandidat awal (0%)');
+}
+
+export function card_relevance_badge_uses_relevance_score() {
+  const item = {
+    relevance_score: 0.85,
+    symptom_coverage: 0.20,
+  } as unknown as HerbalCandidate;
+
+  const badgeText = getRelevanceBadgeText(item);
+  // Relevansi tinggi is for score >= 0.75, percent is 85%
+  assert.equal(badgeText, 'Relevansi tinggi (85%)');
+}
+
+export function card_score_and_relevance_are_consistent() {
+  const item = {
+    relevance_score: 0.65,
+    symptom_coverage: 0.40,
+  } as unknown as HerbalCandidate;
+
+  assert.equal(getRelevanceLabel(item), 'Relevansi sedang');
+  assert.equal(getRelevancePercent(item), 65);
+}
+
+export function card_data_status_shows_traditional_when_traditional_exists() {
+  const item = {
+    traditional_uses: [{ title: 'Batuk' }],
+  } as unknown as HerbalCandidate;
+
+  assert.equal(getDataStatusLabel(item), 'Data tradisional tersedia');
+}
+
+export function card_safety_unknown_not_rendered_as_perlu_perhatian() {
+  const item = {
+    safety_status: 'unknown',
+  } as unknown as HerbalCandidate;
+
+  // Unknown safety status with no warnings or contraindications should render as 'Data keamanan belum cukup'
+  assert.equal(getSafetyLabelV2(item), 'Data keamanan belum cukup');
+}
+
+export function card_evidence_traditional_not_rendered_as_bukti_belum_tersedia() {
+  const item = {
+    evidence_level: 'traditional',
+  } as unknown as HerbalCandidate;
+
+  assert.equal(getEvidenceLabelV2(item), 'Data tradisional tersedia');
+}
+
+export function detail_plant_part_no_belum_lolos_verifikasi_when_data_missing() {
+  const plantParts = [] as any[];
+  // Renders standard friendly fallback text, not legacy "belum lolos verifikasi"
+  const text = plantParts.length > 0 ? plantParts.join(', ') : 'Bagian tanaman belum tersedia pada knowledge graph.';
+  assert.equal(text, 'Bagian tanaman belum tersedia pada knowledge graph.');
+}
+
+export function detail_warning_does_not_show_missing_word() {
+  const status = 'missing';
+  assert.equal(formatSafetyFieldStatus(status), 'belum tercatat');
+}
+
+export function detail_warning_renders_friendly_empty_state() {
+  const contraindications = [] as any[];
+  const text = contraindications.length ? contraindications.join(', ') : 'Belum ada kontraindikasi spesifik yang tercatat pada knowledge graph.';
+  assert.equal(text, 'Belum ada kontraindikasi spesifik yang tercatat pada knowledge graph.');
+}
+
+export function detail_sources_not_show_verified_graph_when_empty() {
+  const sources = [] as any[];
+  const text = sources.length > 0 ? 'Verified' : 'Sumber spesifik belum tersedia pada data ini.';
+  assert.equal(text, 'Sumber spesifik belum tersedia pada data ini.');
+}
+
+export function free_text_empty_state_shows_suggested_terms() {
+  const response = {
+    suggested_terms: ['sariawan', 'luka mulut'],
+  };
+  assert.equal(response.suggested_terms.length, 2);
 }

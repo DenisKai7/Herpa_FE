@@ -683,3 +683,42 @@ export async function analyzeHerbalComplaint(
     );
   }
 }
+
+export async function getHerbRecommendationDetail(
+  herbId: string,
+): Promise<HerbEnrichmentDetail> {
+  try {
+    const response = await apiClient.get<{ detail?: HerbEnrichmentDetail } | HerbEnrichmentDetail>(
+      `/api/herbal-recommendations/herbs/${encodeURIComponent(herbId)}/detail`,
+      { timeout: 30000 },
+    );
+
+    const data = response.data;
+
+    // Backend may wrap in { detail: {...} } or return flat
+    if (data && typeof data === 'object' && 'detail' in data && data.detail) {
+      return data.detail;
+    }
+
+    return data as HerbEnrichmentDetail;
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+      const axiosError = error as { response?: { status?: number } };
+      const status = axiosError.response?.status ?? 500;
+
+      throw new HerbalRecommendationApiError(
+        'HERB_DETAIL_FAILED',
+        status === 404
+          ? 'Detail herbal belum tersedia pada knowledge graph.'
+          : getApiErrorMessage(error),
+        status,
+      );
+    }
+
+    throw new HerbalRecommendationApiError(
+      'HERB_DETAIL_FAILED',
+      'Gagal memuat detail herbal.',
+      500,
+    );
+  }
+}
