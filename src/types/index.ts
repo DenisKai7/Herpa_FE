@@ -139,6 +139,9 @@ export interface ChatRequest {
   persona?: string | null;
   model_mode?: string | null;
   request_id?: string;
+  agent_mode?: string | null;
+  system_context?: string | null;
+  response_language?: string | null;
 }
 
 // --- Model Selection ---

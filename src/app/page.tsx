@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
@@ -11,7 +11,7 @@ import { useAuthStore } from '@/hooks/useAuthStore';
 import { useChatStore } from '@/hooks/useChatStore';
 import { Spinner } from '@/components/ui/Spinner';
 import type { AiMode } from '@/types';
-import type { ModelMode } from '@/types/model';
+import type { QuickMenu } from '@/components/chat/WelcomeScreen';
 
 export default function HomePage() {
   const router = useRouter();
@@ -19,7 +19,10 @@ export default function HomePage() {
   const { activeSessionId, messages, isSending, fetchSessions } = useChatStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiMode, setAiMode] = useState<AiMode>('umum');
-  const [modelMode, setModelMode] = useState<ModelMode>('fast-medium');
+  const [activeAgentMode, setActiveAgentMode] = useState<string>('general');
+  const [activeSystemContext, setActiveSystemContext] = useState<string>('general');
+  const [responseLanguage, setResponseLanguage] = useState<string>('id');
+  const [chatInputSetMessage, setChatInputSetMessage] = useState<((msg: string) => void) | null>(null);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -40,6 +43,19 @@ export default function HomePage() {
     }
   }, [user, fetchSessions]);
 
+  const handleChatInputReady = useCallback((setMsg: (msg: string) => void) => {
+    setChatInputSetMessage(() => setMsg);
+  }, []);
+
+  const handleQuickMenuClick = useCallback((menu: QuickMenu) => {
+    setActiveAgentMode(menu.agentMode);
+    setActiveSystemContext(menu.systemContext);
+    setResponseLanguage(menu.responseLanguage || 'id');
+    if (chatInputSetMessage) {
+      chatInputSetMessage(menu.defaultPrompt);
+    }
+  }, [chatInputSetMessage]);
+
   // Loading state
   if (!isInitialized) {
     return (
@@ -55,13 +71,11 @@ export default function HomePage() {
   if (!user) return null;
 
   // Show ChatStream if there are messages OR if we're actively sending
-  // (covers the optimistic phase when activeSessionId is still null but
-  // the user message has already been appended to messages[])
   const hasMessages = messages.length > 0 || isSending;
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-[#030712] text-gray-900 dark:text-gray-100 transition-colors duration-200">
-      <Header aiMode={aiMode} onAiModeChange={setAiMode} modelMode={modelMode} onModelModeChange={setModelMode} />
+      <Header aiMode={aiMode} onAiModeChange={setAiMode} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           isOpen={sidebarOpen}
@@ -70,11 +84,11 @@ export default function HomePage() {
         <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#030712] transition-colors duration-200">
           {/* Chat Messages or Welcome */}
           <div className="flex-1 overflow-y-auto">
-            {hasMessages ? <ChatStream /> : <WelcomeScreen />}
+            {hasMessages ? <ChatStream /> : <WelcomeScreen activeAgentMode={activeAgentMode} onSuggestionClick={handleQuickMenuClick} />}
           </div>
 
           {/* Chat Input */}
-          <ChatInput aiMode={aiMode} modelMode={modelMode} />
+          <ChatInput aiMode={aiMode} agentMode={activeAgentMode} systemContext={activeSystemContext} responseLanguage={responseLanguage} onReady={handleChatInputReady} />
         </main>
       </div>
     </div>

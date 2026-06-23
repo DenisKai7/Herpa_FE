@@ -29,6 +29,10 @@ interface UploadedFile {
 interface ChatInputProps {
   aiMode: AiMode;
   modelMode?: ModelMode;
+  agentMode?: string;
+  systemContext?: string;
+  responseLanguage?: string;
+  onReady?: (setMessage: (msg: string) => void) => void;
 }
 
 const ATTACHMENT_STATUS_LABELS: Record<AttachmentStatus, string> = {
@@ -39,7 +43,7 @@ const ATTACHMENT_STATUS_LABELS: Record<AttachmentStatus, string> = {
   failed: 'Gagal diproses · Coba lagi',
 };
 
-export function ChatInput({ aiMode, modelMode }: ChatInputProps) {
+export function ChatInput({ aiMode, modelMode, agentMode, systemContext, responseLanguage, onReady }: ChatInputProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { sendMessage, cancelSending, isSending, activeSessionId } = useChatStore();
@@ -51,6 +55,10 @@ export function ChatInput({ aiMode, modelMode }: ChatInputProps) {
   const activeModel = options.some((o) => o.value === selectedModel) ? selectedModel : options[0].value;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    onReady?.(setMessage);
+  }, [onReady]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -156,6 +164,9 @@ export function ChatInput({ aiMode, modelMode }: ChatInputProps) {
       model_choice: activeModel,
       persona: aiMode,
       model_mode: modelMode ?? modelModeValue,
+      agent_mode: agentMode || 'general',
+      system_context: systemContext || 'general',
+      response_language: responseLanguage || 'id',
     });
 
     if (isNewChat && chatId && pathname === '/') {
