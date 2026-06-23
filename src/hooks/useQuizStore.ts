@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import { getQuizProgressSafe, getQuizTopicsSafe, quizApi, getHttpStatus } from '@/lib/api/quiz';
-import { getQuestionsForTopicLevel } from '@/lib/quizData';
-import { checkAnswerLocally } from '@/lib/quizLocalChecker';
+import { getQuizProgressSafe, getQuizTopicsSafe, quizApi } from '@/lib/api/quiz';
 
 export interface ChemistryTopic {
   id: string;
@@ -35,8 +33,9 @@ export const CHEMISTRY_TOPICS: ChemistryTopic[] = [
 
 export interface QuizSessionQuestion {
   id: number;
+  backend_id?: string;
   question: string;
-  options: { label: string; text: string }[];
+  options: { id?: string; option_key?: string; label: string; text: string }[];
   correct_answer: string;
   explanation: string;
   question_type?: 'multiple_choice' | 'matching' | 'true_false' | 'short_answer' | 'case_based';
@@ -88,18 +87,22 @@ function normalizeOption(option: unknown, index: number) {
   if (typeof option === 'string') {
     const label = option.charAt(0) || String.fromCharCode(65 + index);
     const text = option.includes(':') ? option.split(':').slice(1).join(':').trim() : option.trim();
-    return { label, text };
+    return { id: label, option_key: label, label, text };
   }
 
   if (option && typeof option === 'object') {
     const data = option as Record<string, unknown>;
+    const optionKey = String(data.option_key ?? data.key ?? data.label ?? String.fromCharCode(65 + index));
     return {
-      label: String(data.label ?? data.key ?? String.fromCharCode(65 + index)),
+      id: String(data.id ?? optionKey),
+      option_key: optionKey,
+      label: optionKey,
       text: String(data.text ?? data.value ?? data.label ?? ''),
     };
   }
 
-  return { label: String.fromCharCode(65 + index), text: String(option ?? '') };
+  const label = String.fromCharCode(65 + index);
+  return { id: label, option_key: label, label, text: String(option ?? '') };
 }
 
 export const useQuizStore = create<QuizState>((set, get) => ({
@@ -167,9 +170,10 @@ export const useQuizStore = create<QuizState>((set, get) => ({
         const options = (q.options || []).map(normalizeOption);
         return {
           id: idx + 1,
+          backend_id: q.id,
           question: q.prompt,
           options,
-          correct_answer: String(q.correct_answer ?? q.explanation?.match(/Jawaban benar: ([A-D])/i)?.[1] ?? options[0]?.label ?? 'A'),
+          correct_answer: '',
           explanation: q.explanation || '',
           question_type: q.question_type ?? (q as { type?: QuizSessionQuestion['question_type'] }).type ?? 'multiple_choice',
           matching_pairs: q.matching_pairs ?? undefined,
@@ -193,22 +197,21 @@ export const useQuizStore = create<QuizState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
-      if (getHttpStatus(error) !== 404) {
-        console.warn('Backend quiz session failed, falling back to local quiz:', error);
-      }
+      console.warn('Backend quiz session failed:', error);
       set({
         sessionId: null,
-        questions: getQuestionsForTopicLevel(topicId, levelNumber),
+        questions: [],
         currentIndex: 0,
         selectedAnswer: null,
         isChecked: false,
         answers: [],
-        sessionStartTime: Date.now(),
-        questionStartTime: Date.now(),
-        isSessionActive: true,
+        sessionStartTime: null,
+        questionStartTime: null,
+        isSessionActive: false,
         isSessionComplete: false,
         isLoading: false,
       });
+      throw error;
     }
   },
 
@@ -219,30 +222,41 @@ export const useQuizStore = create<QuizState>((set, get) => ({
 
   checkAnswer: async () => {
     const { selectedAnswer, questions, currentIndex, answers, questionStartTime, sessionId } = get();
-    if (!selectedAnswer || !questions[currentIndex]) return;
+    if (!selectedAnswer || !questions[currentIndex] || !sessionId) return;
 
     const q = questions[currentIndex];
-    let result = checkAnswerLocally(q, selectedAnswer);
     const timeSpent = questionStartTime ? Date.now() - questionStartTime : 0;
+    const selectedOption = q.options.find((option) => option.label === selectedAnswer || option.option_key === selectedAnswer || option.id === selectedAnswer);
+    if (!selectedOption?.id) throw new Error('Pilihan jawaban tidak valid.');
 
-    if (sessionId) {
-      try {
-        const backendResult = await quizApi.submitAnswer(sessionId, { question_id: String(q.id), answer: selectedAnswer });
-        result = backendResult.backend_unavailable ? result : backendResult;
-      } catch (err) {
-        console.warn('Submit answer failed, using local checker:', err);
-      }
-    }
+    const result = await quizApi.submitAnswer(sessionId, {
+      question_id: String(q.backend_id ?? q.id),
+      selected_option_id: selectedOption.id,
+      elapsed_ms: timeSpent,
+    });
+    if (result.backend_unavailable) throw new Error('Session quiz tidak ditemukan. Silakan mulai ulang level.');
+    if (result.question_not_in_attempt) throw Object.assign(new Error('Session quiz tidak sinkron. Silakan mulai ulang level.'), { question_not_in_attempt: true });
+
+    const correctAnswer = String(result.correct_option_key ?? result.correct_answer ?? '');
+    const updatedQuestions = [...questions];
+    updatedQuestions[currentIndex] = { ...q, correct_answer: correctAnswer, explanation: result.explanation ?? q.explanation };
 
     const record: QuizAnswerRecord = {
       questionId: q.id,
       selectedAnswer,
-      correctAnswer: String(result.correct_answer ?? q.correct_answer),
-      isCorrect: result.correct,
+      correctAnswer,
+      isCorrect: result.is_correct ?? result.correct,
       timeSpent,
     };
 
-    set({ isChecked: true, answers: [...answers, record] });
+    set({
+      isChecked: true,
+      answers: [...answers, record],
+      questions: updatedQuestions,
+      currentIndex: result.current_question_index != null ? Math.max(0, Math.min(currentIndex, result.current_question_index - 1)) : currentIndex,
+      isSessionComplete: Boolean(result.is_completed ?? result.session_completed),
+      totalXp: result.xp_earned ? get().totalXp + result.xp_earned : get().totalXp,
+    });
   },
 
   nextQuestion: async () => {

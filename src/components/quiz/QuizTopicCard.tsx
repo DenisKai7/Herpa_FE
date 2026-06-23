@@ -1,6 +1,5 @@
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { buildFallbackLevels } from '@/lib/quizData';
 import type { QuizLevel, QuizTopic } from '@/types/quiz';
 import { QuizLevelChips } from './QuizLevelChips';
 
@@ -44,7 +43,8 @@ function getStatusLabel(status?: string) {
 }
 
 export function QuizTopicCard({ topic, index, onStartLevel }: QuizTopicCardProps) {
-  const levels = topic.levels?.length ? topic.levels : buildFallbackLevels(topic.id);
+  const levels = topic.levels ?? [];
+  const progress = topic.progress_percent ?? topic.progress ?? 0;
   const isCompleted = topic.status === 'completed';
   const isProgressing = topic.status === 'in_progress';
 
@@ -66,10 +66,10 @@ export function QuizTopicCard({ topic, index, onStartLevel }: QuizTopicCardProps
       <div className="absolute top-5 right-5 h-8 w-8">
         <svg className="h-full w-full" viewBox="0 0 36 36">
           <path className="text-gray-200 dark:text-gray-700" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-          <path className={isCompleted ? 'text-emerald-500' : 'text-blue-500'} strokeWidth="3.5" strokeDasharray={`${topic.progress ?? 0}, 100`} strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+          <path className={isCompleted ? 'text-emerald-500' : 'text-blue-500'} strokeWidth="3.5" strokeDasharray={`${progress}, 100`} strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-gray-600 dark:text-gray-300">
-          {topic.progress ?? 0}%
+          {progress}%
         </div>
       </div>
 

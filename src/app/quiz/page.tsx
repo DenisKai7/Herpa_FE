@@ -1,96 +1,62 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, GraduationCap, History, Home, Trophy, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QuizTopicCard } from '@/components/quiz/QuizTopicCard';
-import { buildFallbackLevels } from '@/lib/quizData';
-import { fallbackQuizProgress, getHttpStatus, quizApi } from '@/lib/api/quiz';
-import { CHEMISTRY_TOPICS, useQuizStore } from '@/hooks/useQuizStore';
+import { getHttpStatus, quizApi } from '@/lib/api/quiz';
 import type { QuizLevel, QuizProgress, QuizTopic } from '@/types/quiz';
-
-function localTopics(): QuizTopic[] {
-  return CHEMISTRY_TOPICS.map((topic, index) => ({
-    id: topic.id,
-    title: topic.name,
-    description: topic.description,
-    order_index: index + 1,
-    icon: topic.icon,
-    progress: topic.progress,
-    status: topic.status === 'selesai' ? 'completed' : topic.status === 'sedang_dikerjakan' ? 'in_progress' : 'available',
-    highest_level_completed: 0,
-    current_level: 1,
-    question_count: topic.questionCount,
-    best_score: topic.bestScore ?? undefined,
-    levels: buildFallbackLevels(topic.id),
-  }));
-}
 
 export default function QuizDashboard() {
   const router = useRouter();
-  const { startSession } = useQuizStore();
-  const [progress, setProgress] = useState<QuizProgress>(fallbackQuizProgress);
+  const [progress, setProgress] = useState<QuizProgress>({ total_xp: 0, level: 1, completed_topics: 0, completed_levels: 0, current_streak: 0, topic_progress: [] });
   const [topics, setTopics] = useState<QuizTopic[]>([]);
   const [quizBackendAvailable, setQuizBackendAvailable] = useState<boolean | null>(null);
-  const fallbackTopics = useMemo(() => localTopics(), []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadQuizData() {
-      const progressResult = await quizApi.getProgressSafe();
+      const dashboard = await quizApi.getDashboard();
       if (!cancelled) {
-        setProgress(progressResult.data);
-        setQuizBackendAvailable(progressResult.backendAvailable);
-      }
-
-      const topicResult = await quizApi.getTopicsSafe(fallbackTopics);
-      if (!cancelled) {
-        setTopics(topicResult.topics.map((topic) => ({ ...topic, levels: topic.levels?.length ? topic.levels : buildFallbackLevels(topic.id) })));
-        setQuizBackendAvailable((prev) => prev ?? topicResult.backendAvailable);
+        setProgress(dashboard.progress);
+        setTopics(dashboard.topics);
+        setQuizBackendAvailable(true);
       }
     }
 
     loadQuizData().catch((error) => {
       console.warn('Quiz data load failed:', error);
       if (!cancelled) {
-        setProgress(fallbackQuizProgress);
-        setTopics(fallbackTopics);
+        setTopics([]);
         setQuizBackendAvailable(false);
+        toast.error('Data quiz tidak dapat dimuat dari database.');
       }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [fallbackTopics]);
+  }, []);
 
   const handleStartLevel = async (topic: QuizTopic, level: QuizLevel) => {
-    if (level.is_locked) {
+    if (level.is_locked || level.is_unlocked === false) {
       toast(`Selesaikan Level ${Math.max(1, level.level_number - 1)} terlebih dahulu.`, { icon: '🔒' });
       return;
     }
 
     try {
-      if (quizBackendAvailable) {
-        const session = await quizApi.startSession({
-          topic_id: topic.id,
-          level_id: level.id,
-          level_number: level.level_number,
-          question_count: 10,
-        });
-        router.push(`/quiz/session?session_id=${encodeURIComponent(session.id)}&topic_id=${encodeURIComponent(topic.id)}&level=${level.level_number}`);
-        return;
-      }
+      const session = await quizApi.startSession({ level_id: level.id });
+      router.push(`/quiz/session?session_id=${encodeURIComponent(session.id)}&topic_id=${encodeURIComponent(topic.id)}&level=${level.level_number}`);
     } catch (error) {
-      if (getHttpStatus(error) !== 404) {
-        console.warn('Backend quiz session failed, falling back local:', error);
+      console.warn('Backend quiz session failed:', error);
+      if (getHttpStatus(error) === 404) {
+        toast.error('Level quiz tidak ditemukan atau belum memiliki soal.');
+      } else {
+        toast.error('Gagal memulai quiz. Coba lagi.');
       }
     }
-
-    await startSession(topic.id, level.level_number);
-    router.push('/quiz/session');
   };
 
   return (
@@ -121,7 +87,7 @@ export default function QuizDashboard() {
         <div className="flex flex-col items-center justify-between gap-6 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white shadow-xl md:flex-row">
           <div className="space-y-2 text-center md:text-left">
             <h2 className="text-2xl font-extrabold md:text-3xl">Selamat Datang di Arena Kuis!</h2>
-            <p className="max-w-md text-sm text-blue-100 md:text-base">Pilih topik dan level 1–5. Backend dipakai otomatis jika tersedia, lokal aktif jika belum siap.</p>
+            <p className="max-w-md text-sm text-blue-100 md:text-base">Pilih topik dan level 1–5. Seluruh soal dimuat dari database quiz terbaru.</p>
           </div>
           <div className="flex gap-4">
             <div className="flex min-w-[80px] flex-col items-center rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
@@ -143,8 +109,8 @@ export default function QuizDashboard() {
         </div>
 
         {quizBackendAvailable === false && (
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
-            Mode lokal aktif. Topik kuis tetap bisa digunakan, sementara sinkronisasi progress backend belum tersedia.
+          <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
+            Data quiz tidak dapat dimuat dari database. Coba refresh atau jalankan backend terlebih dahulu.
           </div>
         )}
 
@@ -153,11 +119,17 @@ export default function QuizDashboard() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Setiap topik memiliki Level 1–5: Pilihan Ganda, Mencocokkan, Benar/Salah, Jawaban Singkat, dan Studi Kasus.</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {(topics.length > 0 ? topics : fallbackTopics).map((topic, index) => (
-            <QuizTopicCard key={topic.id} topic={topic} index={index} onStartLevel={handleStartLevel} />
-          ))}
-        </div>
+        {topics.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+            Belum ada topik quiz dari database.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {topics.map((topic, index) => (
+              <QuizTopicCard key={topic.id} topic={topic} index={index} onStartLevel={handleStartLevel} />
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

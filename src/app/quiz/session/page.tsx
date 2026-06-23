@@ -4,8 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ArrowRight, CheckCircle2, HelpCircle, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { QuestionRenderer } from '@/components/quiz/questions/QuestionRenderer';
 import { useQuizStore } from '@/hooks/useQuizStore';
+import { getHttpStatus } from '@/lib/api/quiz';
 import { cn } from '@/lib/utils';
 
 type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext };
@@ -61,6 +63,7 @@ export default function QuizSession() {
   } = useQuizStore();
   const [hasStartedTransition, setHasStartedTransition] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(Boolean(sessionId));
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +72,11 @@ export default function QuizSession() {
       if (!sessionId) return;
       setIsLoadingSession(true);
       try {
-        await startSession(topicId || 'struktur-atom', levelNumber, sessionId);
+        await startSession(topicId || '', levelNumber, sessionId);
+      } catch (error) {
+        console.warn('Load quiz session failed:', error);
+        toast.error('Session quiz tidak ditemukan. Silakan mulai ulang level.');
+        router.push('/quiz');
       } finally {
         if (!cancelled) setIsLoadingSession(false);
       }
@@ -79,7 +86,7 @@ export default function QuizSession() {
     return () => {
       cancelled = true;
     };
-  }, [levelNumber, sessionId, startSession, topicId]);
+  }, [levelNumber, router, sessionId, startSession, topicId]);
 
   useEffect(() => {
     if (!sessionId && !isSessionActive && !isSessionComplete) {
@@ -105,13 +112,31 @@ export default function QuizSession() {
   const progressPercent = questions.length > 0 ? Math.round((currentIndex / questions.length) * 100) : 0;
 
   const handleCheck = async () => {
-    if (!selectedAnswer || isChecked || !currentQuestion) return;
-    await checkAnswer();
-    const type = currentQuestion.question_type ?? 'multiple_choice';
-    const correct = type === 'short_answer'
-      ? (currentQuestion.accepted_answers ?? [currentQuestion.correct_answer]).some((answer) => answer.trim().toLowerCase() === selectedAnswer.trim().toLowerCase())
-      : selectedAnswer === currentQuestion.correct_answer;
-    playSoundEffect(correct ? 'correct' : 'incorrect');
+    if (!selectedAnswer || isChecked || !currentQuestion || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await checkAnswer();
+      const latestRecord = useQuizStore.getState().answers.find((answer) => answer.questionId === currentQuestion.id);
+      playSoundEffect(latestRecord?.isCorrect ? 'correct' : 'incorrect');
+    } catch (error) {
+      console.warn('Submit answer failed:', error);
+      const status = getHttpStatus(error);
+      const isQuestionNotInAttempt = (error as { question_not_in_attempt?: boolean })?.question_not_in_attempt;
+      if (isQuestionNotInAttempt) {
+        toast.error('Session quiz tidak sinkron. Silakan mulai ulang level.');
+        router.push('/quiz');
+      } else if (status === 404) {
+        toast.error('Session quiz tidak ditemukan. Silakan mulai ulang level.');
+        router.push('/quiz');
+      } else if (status === 400) {
+        toast('Quiz sudah selesai. Mengalihkan ke summary.', { icon: 'ℹ️' });
+        router.push('/quiz/summary');
+      } else {
+        toast.error('Gagal submit jawaban. Coba lagi.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleNext = async () => {
@@ -129,7 +154,13 @@ export default function QuizSession() {
     return <div className="flex min-h-screen items-center justify-center bg-white text-sm text-gray-500 dark:bg-gray-950 dark:text-gray-400">Memuat sesi kuis...</div>;
   }
 
-  if (!currentQuestion) return null;
+  if (!currentQuestion) {
+    return <div className="flex min-h-screen items-center justify-center bg-white text-sm text-gray-500 dark:bg-gray-950 dark:text-gray-400">Sesi quiz tidak memiliki soal.</div>;
+  }
+
+  if ((currentQuestion.question_type ?? 'multiple_choice') === 'multiple_choice' && currentQuestion.options.length === 0) {
+    return <div className="flex min-h-screen items-center justify-center bg-white text-sm text-rose-500 dark:bg-gray-950">Soal belum memiliki pilihan jawaban.</div>;
+  }
 
   return (
     <div className="flex min-h-screen flex-col justify-between bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-50">
@@ -176,8 +207,8 @@ export default function QuizSession() {
             )}
           </div>
           {!isChecked ? (
-            <button onClick={handleCheck} disabled={!selectedAnswer} className={cn('w-full cursor-pointer rounded-2xl px-8 py-3.5 text-sm font-extrabold uppercase tracking-wider shadow-lg transition-all duration-200 md:w-auto', selectedAnswer ? 'bg-blue-600 text-white shadow-blue-500/20 hover:scale-[1.02] hover:bg-blue-700' : 'cursor-not-allowed bg-gray-100 text-gray-400 shadow-none dark:bg-gray-800')}>
-              Periksa
+            <button onClick={handleCheck} disabled={!selectedAnswer || isSubmitting} className={cn('w-full cursor-pointer rounded-2xl px-8 py-3.5 text-sm font-extrabold uppercase tracking-wider shadow-lg transition-all duration-200 md:w-auto', selectedAnswer && !isSubmitting ? 'bg-blue-600 text-white shadow-blue-500/20 hover:scale-[1.02] hover:bg-blue-700' : 'cursor-not-allowed bg-gray-100 text-gray-400 shadow-none dark:bg-gray-800')}>
+              {isSubmitting ? 'Memeriksa...' : 'Periksa'}
             </button>
           ) : (
             <button onClick={handleNext} className={cn('flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-sm font-extrabold uppercase tracking-wider text-white shadow-lg transition-all duration-200 hover:scale-[1.02] md:w-auto', isCorrect ? 'bg-emerald-600 shadow-emerald-500/20 hover:bg-emerald-700' : 'bg-rose-600 shadow-rose-500/20 hover:bg-rose-700')}>

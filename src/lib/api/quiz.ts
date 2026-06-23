@@ -60,7 +60,34 @@ function normalizeProgress(data: Partial<QuizProgress> & {
   };
 }
 
+export type QuizDashboard = {
+  progress: QuizProgress;
+  topics: QuizTopic[];
+  active_sessions?: QuizHistoryEntry[];
+};
+
 export const quizApi = {
+  async getDashboard(): Promise<QuizDashboard> {
+    const response = await apiClient.get<QuizDashboard>('/api/quiz/dashboard', { silent: true });
+    return {
+      progress: normalizeProgress(response.data.progress),
+      topics: response.data.topics ?? [],
+      active_sessions: response.data.active_sessions ?? [],
+    };
+  },
+
+  async getDashboardSafe(localTopics: QuizTopic[] = []): Promise<QuizDashboard & { backendAvailable: boolean }> {
+    try {
+      const dashboard = await this.getDashboard();
+      return { ...dashboard, backendAvailable: true };
+    } catch (error) {
+      if (getHttpStatus(error) !== 404) {
+        console.warn('Quiz dashboard unavailable:', error);
+      }
+      return { progress: fallbackQuizProgress, topics: localTopics, active_sessions: [], backendAvailable: false };
+    }
+  },
+
   async getProgress(): Promise<QuizProgress> {
     const response = await apiClient.get<QuizProgress>('/api/quiz/progress', { silent: true });
     return normalizeProgress(response.data);
@@ -108,7 +135,7 @@ export const quizApi = {
   },
 
   async startSession(payload: {
-    topic_id: string;
+    topic_id?: string;
     level_id?: string;
     level_number?: number;
     difficulty?: string;
@@ -126,12 +153,12 @@ export const quizApi = {
 
   async submitAnswer(
     sessionId: string,
-    payloadOrQuestionId: { question_id: string; answer: unknown } | string,
+    payloadOrQuestionId: { question_id: string; selected_option_id?: string | null; elapsed_ms?: number; answer?: unknown } | string,
     answer?: unknown
   ): Promise<SubmitAnswerResult> {
     const payload = typeof payloadOrQuestionId === 'string'
-      ? { question_id: payloadOrQuestionId, answer }
-      : payloadOrQuestionId;
+      ? { question_id: payloadOrQuestionId, answer, elapsed_ms: 0 }
+      : { elapsed_ms: 0, ...payloadOrQuestionId };
 
     try {
       const response = await apiClient.post<SubmitAnswerResult>(
@@ -141,7 +168,22 @@ export const quizApi = {
       );
       return response.data;
     } catch (error) {
-      if (getHttpStatus(error) === 404) {
+      const status = getHttpStatus(error);
+      if (status === 409) {
+        // QUESTION_NOT_IN_ATTEMPT — session out of sync with DB
+        return {
+          correct: false,
+          correct_answer: null,
+          explanation: null,
+          score_delta: 0,
+          xp_delta: 0,
+          session_completed: false,
+          session_score: 0,
+          backend_unavailable: false,
+          question_not_in_attempt: true,
+        };
+      }
+      if (status === 404) {
         return {
           correct: false,
           correct_answer: null,

@@ -17,11 +17,15 @@ export type QuizLevel = {
   level_number: number;
   title: string;
   description?: string | null;
-  quiz_type: QuizQuestionType;
+  quiz_type?: QuizQuestionType;
+  question_type?: QuizQuestionType;
+  question_count?: number;
   xp_reward?: number;
   passing_score?: number;
+  is_unlocked?: boolean;
   is_locked?: boolean;
   is_completed?: boolean;
+  best_score?: number;
   progress?: number;
 };
 
@@ -32,6 +36,8 @@ export type QuizTopic = {
   order_index?: number;
   icon?: string | null;
   progress?: number;
+  progress_percent?: number;
+  is_available?: boolean;
   highest_level_completed?: number;
   current_level?: number;
   status?: QuizTopicStatus;
@@ -61,7 +67,7 @@ export type QuizQuestion = {
   level_id: string;
   question_type: QuizQuestionType;
   prompt: string;
-  options?: Array<{ id: string; text: string } | string>;
+  options?: Array<{ id: string; option_key?: string; label?: string; text: string } | string>;
   matching_pairs?: Array<{ left: string; right: string }>;
   correct_answer?: unknown;
   accepted_answers?: unknown[];
@@ -88,9 +94,21 @@ export type QuizSession = {
 };
 
 export type SubmitAnswerResult = {
+  attempt_id?: string;
+  session_id?: string;
+  question_id?: string;
+  selected_option_id?: string | null;
+  selected_option_key?: string | null;
+  is_correct?: boolean;
   correct: boolean;
+  correct_option_id?: string | null;
+  correct_option_key?: string | null;
   correct_answer?: unknown;
   explanation?: string | null;
+  current_question_index?: number | null;
+  score?: number;
+  xp_earned?: number;
+  is_completed?: boolean;
   score_delta?: number;
   xp_delta?: number;
   session_completed?: boolean;
@@ -102,6 +120,7 @@ export type SubmitAnswerResult = {
   passed?: boolean | null;
   next_level_unlocked?: boolean;
   backend_unavailable?: boolean;
+  question_not_in_attempt?: boolean;
 };
 
 export type QuizAnswerResult = SubmitAnswerResult;
