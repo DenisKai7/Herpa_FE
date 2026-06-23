@@ -457,7 +457,7 @@ export function getQuestionsForTopicLevel(topicId: string, levelNumber = 1): Qui
         level_number: levelNumber,
         level_id: `${topicId}-level-${levelNumber}`,
         question: `Jawab singkat: ${question.question}`,
-        accepted_answers: [correctOption.text, question.correct_answer],
+        accepted_answers: [correctOption.text, String(question.correct_answer ?? '')],
         correct_answer: correctOption.text,
       };
     }

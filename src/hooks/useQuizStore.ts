@@ -36,10 +36,14 @@ export interface QuizSessionQuestion {
   backend_id?: string;
   question: string;
   options: { id?: string; option_key?: string; label: string; text: string }[];
-  correct_answer: string;
+  correct_answer: unknown;
   explanation: string;
   question_type?: 'multiple_choice' | 'matching' | 'true_false' | 'short_answer' | 'case_based';
-  matching_pairs?: { left: string; right: string }[];
+  matching_pairs?: { left: unknown; right: unknown }[];
+  matching_left_items?: unknown;
+  matching_right_items?: unknown;
+  metadata?: unknown;
+  formatted_correct_answer?: string | string[];
   accepted_answers?: string[];
   case_context?: string;
   level_number?: number;
@@ -65,6 +69,7 @@ interface QuizState {
   questions: QuizSessionQuestion[];
   currentIndex: number;
   selectedAnswer: string | null;
+  matchingAnswer: Record<string, string>;
   isChecked: boolean;
   answers: QuizAnswerRecord[];
   sessionStartTime: number | null;
@@ -75,6 +80,7 @@ interface QuizState {
   selectTopic: (topicId: string) => void;
   startSession: (topicId: string, levelNumber?: number, sessionId?: string) => Promise<void>;
   selectAnswer: (label: string) => void;
+  setMatchingAnswer: (key: string, value: string) => void;
   checkAnswer: () => Promise<void>;
   nextQuestion: () => Promise<void>;
   cancelSession: () => void;
@@ -116,6 +122,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
   questions: [],
   currentIndex: 0,
   selectedAnswer: null,
+  matchingAnswer: {},
   isChecked: false,
   answers: [],
   sessionStartTime: null,
@@ -177,6 +184,10 @@ export const useQuizStore = create<QuizState>((set, get) => ({
           explanation: q.explanation || '',
           question_type: q.question_type ?? (q as { type?: QuizSessionQuestion['question_type'] }).type ?? 'multiple_choice',
           matching_pairs: q.matching_pairs ?? undefined,
+          matching_left_items: (q as { matching_left_items?: unknown }).matching_left_items,
+          matching_right_items: (q as { matching_right_items?: unknown }).matching_right_items,
+          metadata: (q as { metadata?: unknown }).metadata,
+          formatted_correct_answer: (q as { formatted_correct_answer?: string | string[] }).formatted_correct_answer,
           accepted_answers: q.accepted_answers?.map(String),
           level_number: session.level_number ?? levelNumber,
           level_id: q.level_id,
@@ -188,6 +199,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
         questions: convertedQuestions,
         currentIndex: 0,
         selectedAnswer: null,
+        matchingAnswer: {},
         isChecked: false,
         answers: [],
         sessionStartTime: Date.now(),
@@ -220,31 +232,74 @@ export const useQuizStore = create<QuizState>((set, get) => ({
     set({ selectedAnswer: label });
   },
 
+  setMatchingAnswer: (key, value) => {
+    if (get().isChecked) return;
+    set((state) => ({
+      matchingAnswer: {
+        ...state.matchingAnswer,
+        [key]: value,
+      },
+    }));
+  },
+
   checkAnswer: async () => {
-    const { selectedAnswer, questions, currentIndex, answers, questionStartTime, sessionId } = get();
-    if (!selectedAnswer || !questions[currentIndex] || !sessionId) return;
+    const { selectedAnswer, matchingAnswer, questions, currentIndex, answers, questionStartTime, sessionId } = get();
+    if (!questions[currentIndex] || !sessionId) return;
 
     const q = questions[currentIndex];
+    const qtype = q.question_type ?? 'multiple_choice';
     const timeSpent = questionStartTime ? Date.now() - questionStartTime : 0;
-    const selectedOption = q.options.find((option) => option.label === selectedAnswer || option.option_key === selectedAnswer || option.id === selectedAnswer);
-    if (!selectedOption?.id) throw new Error('Pilihan jawaban tidak valid.');
 
-    const result = await quizApi.submitAnswer(sessionId, {
+    const payload: {
+      question_id: string;
+      elapsed_ms: number;
+      selected_option_id?: string;
+      matching_answer?: Record<string, string>;
+      answer_text?: string;
+    } = {
       question_id: String(q.backend_id ?? q.id),
-      selected_option_id: selectedOption.id,
       elapsed_ms: timeSpent,
-    });
+    };
+
+    let userAnsString = '';
+
+    if (qtype === 'multiple_choice' || qtype === 'true_false') {
+      if (!selectedAnswer) return;
+      const selectedOption = q.options.find(
+        (option) => option.label === selectedAnswer || option.option_key === selectedAnswer || option.id === selectedAnswer
+      );
+      if (!selectedOption?.id) throw new Error('Pilihan jawaban tidak valid.');
+      payload.selected_option_id = selectedOption.id;
+      userAnsString = selectedAnswer;
+    } else if (qtype === 'matching') {
+      if (Object.keys(matchingAnswer).length === 0) {
+        throw new Error('Harap cocokkan semua pasangan sebelum memeriksa.');
+      }
+      payload.matching_answer = matchingAnswer;
+      userAnsString = JSON.stringify(matchingAnswer);
+    } else if (qtype === 'short_answer' || qtype === 'case_based') {
+      if (!selectedAnswer || !selectedAnswer.trim()) return;
+      payload.answer_text = selectedAnswer;
+      userAnsString = selectedAnswer;
+    }
+
+    const result = await quizApi.submitAnswer(sessionId, payload);
     if (result.backend_unavailable) throw new Error('Session quiz tidak ditemukan. Silakan mulai ulang level.');
     if (result.question_not_in_attempt) throw Object.assign(new Error('Session quiz tidak sinkron. Silakan mulai ulang level.'), { question_not_in_attempt: true });
 
-    const correctAnswer = String(result.correct_option_key ?? result.correct_answer ?? '');
+    const correctAnswer = qtype === 'matching' || qtype === 'short_answer' ? result.correct_answer : String(result.correct_option_key ?? result.correct_answer ?? '');
     const updatedQuestions = [...questions];
-    updatedQuestions[currentIndex] = { ...q, correct_answer: correctAnswer, explanation: result.explanation ?? q.explanation };
+    updatedQuestions[currentIndex] = {
+      ...q,
+      correct_answer: correctAnswer,
+      formatted_correct_answer: result.formatted_correct_answer,
+      explanation: result.explanation ?? q.explanation,
+    };
 
     const record: QuizAnswerRecord = {
       questionId: q.id,
-      selectedAnswer,
-      correctAnswer,
+      selectedAnswer: userAnsString,
+      correctAnswer: typeof correctAnswer === 'string' ? correctAnswer : JSON.stringify(correctAnswer ?? ''),
       isCorrect: result.is_correct ?? result.correct,
       timeSpent,
     };
@@ -262,7 +317,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
   nextQuestion: async () => {
     const { currentIndex, questions, sessionId, answers, selectedTopicId } = get();
     if (currentIndex < questions.length - 1) {
-      set({ currentIndex: currentIndex + 1, selectedAnswer: null, isChecked: false, questionStartTime: Date.now() });
+      set({ currentIndex: currentIndex + 1, selectedAnswer: null, matchingAnswer: {}, isChecked: false, questionStartTime: Date.now() });
       return;
     }
 
@@ -287,6 +342,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
       questions: [],
       currentIndex: 0,
       selectedAnswer: null,
+      matchingAnswer: {},
       isChecked: false,
       answers: [],
       sessionStartTime: null,
@@ -301,6 +357,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
       questions: [],
       currentIndex: 0,
       selectedAnswer: null,
+      matchingAnswer: {},
       isChecked: false,
       answers: [],
       sessionStartTime: null,

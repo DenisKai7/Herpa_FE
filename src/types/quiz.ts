@@ -68,7 +68,11 @@ export type QuizQuestion = {
   question_type: QuizQuestionType;
   prompt: string;
   options?: Array<{ id: string; option_key?: string; label?: string; text: string } | string>;
-  matching_pairs?: Array<{ left: string; right: string }>;
+  matching_pairs?: Array<{ left: unknown; right: unknown }>;
+  matching_left_items?: unknown;
+  matching_right_items?: unknown;
+  metadata?: unknown;
+  formatted_correct_answer?: string[];
   correct_answer?: unknown;
   accepted_answers?: unknown[];
   difficulty?: string;
@@ -104,6 +108,10 @@ export type SubmitAnswerResult = {
   correct_option_id?: string | null;
   correct_option_key?: string | null;
   correct_answer?: unknown;
+  formatted_correct_answer?: string | string[];
+  accepted_answers?: unknown;
+  answer_text?: string | null;
+  question_type?: QuizQuestionType;
   explanation?: string | null;
   current_question_index?: number | null;
   score?: number;

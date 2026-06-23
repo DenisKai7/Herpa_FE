@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuizStore } from '@/hooks/useQuizStore';
+import { formatCorrectAnswer, formatUserMatchingAnswer, parseMatchingQuestion } from '@/components/quiz/questions/MatchingQuestionRenderer';
+import { resolveShortAnswerCorrectText } from '@/components/quiz/questions/ShortAnswerQuestionRenderer';
 import { Trophy, CheckCircle2, XCircle, ArrowRight, RefreshCw, BookOpen, AlertCircle, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -171,10 +173,6 @@ export default function QuizSummary() {
               const userChoice = record?.selectedAnswer;
               const isCorrect = record?.isCorrect;
 
-              // Find option texts
-              const userOpt = q.options.find((o) => o.label === userChoice);
-              const correctOpt = q.options.find((o) => o.label === q.correct_answer);
-
               return (
                 <div
                   key={q.id}
@@ -206,37 +204,63 @@ export default function QuizSummary() {
                   </p>
 
                   {/* Answers comparative sheet */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                    {/* User's selection */}
-                    <div
-                      className={cn(
-                        'p-4 rounded-xl border flex flex-col gap-1',
-                        isCorrect
-                          ? 'border-emerald-100 bg-emerald-50/15 dark:border-emerald-950/30'
-                          : 'border-rose-100 bg-rose-50/15 dark:border-rose-950/30'
-                      )}
-                    >
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">Pilihan Kamu</span>
-                      <p
-                        className={cn(
-                          'text-sm font-semibold',
-                          isCorrect ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'
-                        )}
-                      >
-                        ({userOpt?.label || '?'}) {userOpt?.text || '-'}
-                      </p>
-                    </div>
+                  {(() => {
+                    const qtype = q.question_type ?? 'multiple_choice';
+                    let userDisplay = '';
+                    let correctDisplay = '';
 
-                    {/* Correct selection (Show if different) */}
-                    {!isCorrect && (
-                      <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/15 dark:border-emerald-950/30 flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase font-sans">Kunci Jawaban</span>
-                        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                          ({correctOpt?.label}) {correctOpt?.text}
-                        </p>
+                    if (qtype === 'multiple_choice' || qtype === 'true_false') {
+                      const correctAnswerKey = typeof q.correct_answer === 'string' ? q.correct_answer : '';
+                      const userOpt = q.options.find((o) => o.label === userChoice || o.option_key === userChoice || o.id === userChoice);
+                      const correctOpt = q.options.find((o) => o.label === correctAnswerKey || o.option_key === correctAnswerKey || o.id === correctAnswerKey);
+                      userDisplay = userOpt ? `(${userOpt.label}) ${userOpt.text}` : (userChoice || '-');
+                      correctDisplay = correctOpt ? `(${correctOpt.label}) ${correctOpt.text}` : (correctAnswerKey || '-');
+                    } else if (qtype === 'matching') {
+                      const { leftItems, rightItems } = parseMatchingQuestion(q);
+                      userDisplay = formatUserMatchingAnswer(userChoice, leftItems, rightItems);
+                      correctDisplay = formatCorrectAnswer(q.correct_answer, leftItems, rightItems, q.formatted_correct_answer);
+                    } else if (qtype === 'short_answer') {
+                      userDisplay = userChoice || '-';
+                      correctDisplay = resolveShortAnswerCorrectText(q);
+                    } else if (qtype === 'case_based') {
+                      userDisplay = userChoice || '-';
+                      correctDisplay = String(q.correct_answer || '-');
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                        {/* User's selection */}
+                        <div
+                          className={cn(
+                            'p-4 rounded-xl border flex flex-col gap-1',
+                            isCorrect
+                              ? 'border-emerald-100 bg-emerald-50/15 dark:border-emerald-950/30'
+                              : 'border-rose-100 bg-rose-50/15 dark:border-rose-950/30'
+                          )}
+                        >
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">Jawaban Kamu</span>
+                          <p
+                            className={cn(
+                              'whitespace-pre-line text-sm font-semibold',
+                              isCorrect ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'
+                            )}
+                          >
+                            {userDisplay}
+                          </p>
+                        </div>
+
+                        {/* Correct selection (Show if different) */}
+                        {!isCorrect && (
+                          <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/15 dark:border-emerald-950/30 flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase font-sans">Kunci Jawaban</span>
+                            <p className="whitespace-pre-line text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                              {correctDisplay}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
 
                   {/* Explanation drawer */}
                   <div className="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl space-y-1 border border-gray-100 dark:border-gray-800">

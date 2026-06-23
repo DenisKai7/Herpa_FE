@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ArrowRight, CheckCircle2, HelpCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QuestionRenderer } from '@/components/quiz/questions/QuestionRenderer';
+import { formatCorrectAnswer, parseMatchingQuestion } from '@/components/quiz/questions/MatchingQuestionRenderer';
+import { resolveShortAnswerCorrectText } from '@/components/quiz/questions/ShortAnswerQuestionRenderer';
 import { useQuizStore } from '@/hooks/useQuizStore';
 import { getHttpStatus } from '@/lib/api/quiz';
 import { cn } from '@/lib/utils';
@@ -51,9 +53,11 @@ export default function QuizSession() {
     questions,
     currentIndex,
     selectedAnswer,
+    matchingAnswer,
     isChecked,
     answers,
     selectAnswer,
+    setMatchingAnswer,
     checkAnswer,
     nextQuestion,
     cancelSession,
@@ -109,10 +113,22 @@ export default function QuizSession() {
   const currentQuestion = questions[currentIndex];
   const currentRecord = currentQuestion ? answers.find((answer) => answer.questionId === currentQuestion.id) : undefined;
   const isCorrect = currentRecord?.isCorrect;
+  const currentQuestionType = currentQuestion?.question_type ?? 'multiple_choice';
+  const parsedMatching = currentQuestionType === 'matching' && currentQuestion ? parseMatchingQuestion(currentQuestion) : null;
   const progressPercent = questions.length > 0 ? Math.round((currentIndex / questions.length) * 100) : 0;
 
+  const isAnswerValid = () => {
+    if (!currentQuestion) return false;
+    const qtype = currentQuestion.question_type ?? 'multiple_choice';
+    if (qtype === 'matching') {
+      const { leftItems } = parseMatchingQuestion(currentQuestion);
+      return leftItems.length > 0 && leftItems.every((item) => Boolean(matchingAnswer[item.key]));
+    }
+    return Boolean(selectedAnswer && selectedAnswer.trim());
+  };
+
   const handleCheck = async () => {
-    if (!selectedAnswer || isChecked || !currentQuestion || isSubmitting) return;
+    if (!isAnswerValid() || isChecked || !currentQuestion || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await checkAnswer();
@@ -132,7 +148,7 @@ export default function QuizSession() {
         toast('Quiz sudah selesai. Mengalihkan ke summary.', { icon: 'ℹ️' });
         router.push('/quiz/summary');
       } else {
-        toast.error('Gagal submit jawaban. Coba lagi.');
+        toast.error('Jawaban belum tersimpan. Coba lagi.');
       }
     } finally {
       setIsSubmitting(false);
@@ -174,7 +190,7 @@ export default function QuizSession() {
         <span className="whitespace-nowrap text-sm font-bold text-gray-400">{currentIndex + 1} / {questions.length}</span>
       </header>
 
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-6 py-8">
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-6 pb-36 pt-8">
         <AnimatePresence mode="wait">
           <motion.div key={currentIndex} initial={{ opacity: 0, x: hasStartedTransition ? 50 : 0 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="space-y-8">
             <div className="space-y-4">
@@ -182,9 +198,9 @@ export default function QuizSession() {
                 <HelpCircle className="h-4 w-4" />
                 Pertanyaan {currentIndex + 1} · {(currentQuestion.question_type ?? 'multiple_choice').replace(/_/g, ' ')}
               </span>
-              <h2 className="text-xl font-bold leading-relaxed md:text-2xl">{currentQuestion.question}</h2>
+              {currentQuestionType !== 'matching' && <h2 className="text-xl font-bold leading-relaxed md:text-2xl">{currentQuestion.question}</h2>}
             </div>
-            <QuestionRenderer question={currentQuestion} selectedAnswer={selectedAnswer} isChecked={isChecked} onSelect={selectAnswer} />
+            <QuestionRenderer question={currentQuestion} selectedAnswer={selectedAnswer} matchingAnswer={matchingAnswer} isChecked={isChecked} onSelect={selectAnswer} onMatchingChange={setMatchingAnswer} isSubmitting={isSubmitting} />
           </motion.div>
         </AnimatePresence>
       </main>
@@ -196,18 +212,24 @@ export default function QuizSession() {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
                 <div className="flex items-center gap-2">
                   {isCorrect ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> : <AlertTriangle className="h-5 w-5 text-rose-500" />}
-                  <span className={cn('text-sm font-black', isCorrect ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400')}>
-                    {isCorrect ? 'Keren! Jawaban Anda Benar' : `Jawaban Tepat: ${currentQuestion.correct_answer}`}
+                  <span className={cn('whitespace-pre-line text-sm font-black', isCorrect ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400')}>
+                    {isCorrect
+                      ? 'Keren! Jawaban Anda Benar'
+                      : currentQuestionType === 'matching' && parsedMatching
+                        ? `Jawaban Tepat:\n${formatCorrectAnswer(currentQuestion.correct_answer, parsedMatching.leftItems, parsedMatching.rightItems, currentQuestion.formatted_correct_answer)}`
+                        : currentQuestionType === 'short_answer'
+                          ? `Jawaban Tepat: ${resolveShortAnswerCorrectText(currentQuestion)}`
+                          : `Jawaban Tepat: ${String(currentQuestion.correct_answer ?? '-')}`}
                   </span>
                 </div>
                 <p className="max-w-xl text-xs leading-relaxed text-gray-600 dark:text-gray-300">{currentQuestion.explanation}</p>
               </motion.div>
             ) : (
-              <p className="text-xs font-medium text-gray-400 dark:text-gray-500">Isi atau pilih jawaban untuk memeriksa hasil.</p>
+              <p className="text-xs font-medium text-gray-400 dark:text-gray-500">{currentQuestionType === 'matching' && !isAnswerValid() ? 'Lengkapi semua pasangan terlebih dahulu.' : 'Isi atau pilih jawaban untuk memeriksa hasil.'}</p>
             )}
           </div>
           {!isChecked ? (
-            <button onClick={handleCheck} disabled={!selectedAnswer || isSubmitting} className={cn('w-full cursor-pointer rounded-2xl px-8 py-3.5 text-sm font-extrabold uppercase tracking-wider shadow-lg transition-all duration-200 md:w-auto', selectedAnswer && !isSubmitting ? 'bg-blue-600 text-white shadow-blue-500/20 hover:scale-[1.02] hover:bg-blue-700' : 'cursor-not-allowed bg-gray-100 text-gray-400 shadow-none dark:bg-gray-800')}>
+            <button onClick={handleCheck} disabled={!isAnswerValid() || isSubmitting} className={cn('w-full cursor-pointer rounded-2xl px-8 py-3.5 text-sm font-extrabold uppercase tracking-wider shadow-lg transition-all duration-200 md:w-auto', isAnswerValid() && !isSubmitting ? 'bg-blue-600 text-white shadow-blue-500/20 hover:scale-[1.02] hover:bg-blue-700' : 'cursor-not-allowed bg-gray-100 text-gray-400 shadow-none dark:bg-gray-800')}>
               {isSubmitting ? 'Memeriksa...' : 'Periksa'}
             </button>
           ) : (

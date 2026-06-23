@@ -153,7 +153,7 @@ export const quizApi = {
 
   async submitAnswer(
     sessionId: string,
-    payloadOrQuestionId: { question_id: string; selected_option_id?: string | null; elapsed_ms?: number; answer?: unknown } | string,
+    payloadOrQuestionId: { question_id: string; selected_option_id?: string | null; matching_answer?: Record<string, string>; elapsed_ms?: number; answer?: unknown } | string,
     answer?: unknown
   ): Promise<SubmitAnswerResult> {
     const payload = typeof payloadOrQuestionId === 'string'
