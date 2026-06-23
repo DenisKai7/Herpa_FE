@@ -1,5 +1,5 @@
 import type { QuizSessionQuestion } from '@/hooks/useQuizStore';
-import { CaseBasedQuestion } from './CaseBasedQuestion';
+import { CaseStudyQuestionRenderer } from './CaseStudyQuestionRenderer';
 import { MatchingQuestionRenderer } from './MatchingQuestionRenderer';
 import { MultipleChoiceQuestion } from './MultipleChoiceQuestion';
 import { ShortAnswerQuestionRenderer } from './ShortAnswerQuestionRenderer';
@@ -24,7 +24,8 @@ export function QuestionRenderer(props: Props) {
     case 'short_answer':
       return <ShortAnswerQuestionRenderer question={props.question} answerText={props.selectedAnswer ?? ''} onAnswerTextChange={props.onSelect} disabled={props.isChecked} isSubmitting={props.isSubmitting} />;
     case 'case_based':
-      return <CaseBasedQuestion {...props} />;
+    case 'case_study':
+      return <CaseStudyQuestionRenderer question={props.question} answerText={props.selectedAnswer ?? ''} onAnswerTextChange={props.onSelect} disabled={props.isChecked} isSubmitting={props.isSubmitting} />;
     default:
       return <MultipleChoiceQuestion {...props} />;
   }

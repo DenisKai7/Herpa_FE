@@ -30,7 +30,19 @@ export function checkAnswerLocally(question: QuizSessionQuestion, answer: unknow
   const acceptedAnswers = question.accepted_answers ?? [];
   let correct = false;
 
-  if (type === 'multiple_choice' || type === 'case_based' || type === 'matching') {
+  if (type === 'case_based' || type === 'case_study') {
+    const ca = correctAnswer as Record<string, unknown>;
+    if (ca && typeof ca === 'object' && (Array.isArray(ca.required_keywords) || Array.isArray(ca.keywords))) {
+      const kws = (ca.required_keywords || ca.keywords || []) as string[];
+      const keywords = kws.map(normalizeText);
+      const minKw = typeof ca.min_keywords === 'number' ? ca.min_keywords : 1;
+      const userNorm = normalizeText(answer);
+      const matched = keywords.filter(kw => kw && userNorm.includes(kw)).length;
+      correct = matched >= minKw;
+    } else {
+      correct = normalizeText(answer) === normalizeText(correctAnswer);
+    }
+  } else if (type === 'multiple_choice' || type === 'matching') {
     correct = normalizeText(answer) === normalizeText(correctAnswer);
   }
 

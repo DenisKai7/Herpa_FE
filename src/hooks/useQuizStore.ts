@@ -38,7 +38,7 @@ export interface QuizSessionQuestion {
   options: { id?: string; option_key?: string; label: string; text: string }[];
   correct_answer: unknown;
   explanation: string;
-  question_type?: 'multiple_choice' | 'matching' | 'true_false' | 'short_answer' | 'case_based';
+  question_type?: 'multiple_choice' | 'matching' | 'true_false' | 'short_answer' | 'case_based' | 'case_study';
   matching_pairs?: { left: unknown; right: unknown }[];
   matching_left_items?: unknown;
   matching_right_items?: unknown;
@@ -277,7 +277,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
       }
       payload.matching_answer = matchingAnswer;
       userAnsString = JSON.stringify(matchingAnswer);
-    } else if (qtype === 'short_answer' || qtype === 'case_based') {
+    } else if (qtype === 'short_answer' || qtype === 'case_based' || qtype === 'case_study') {
       if (!selectedAnswer || !selectedAnswer.trim()) return;
       payload.answer_text = selectedAnswer;
       userAnsString = selectedAnswer;
@@ -287,7 +287,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
     if (result.backend_unavailable) throw new Error('Session quiz tidak ditemukan. Silakan mulai ulang level.');
     if (result.question_not_in_attempt) throw Object.assign(new Error('Session quiz tidak sinkron. Silakan mulai ulang level.'), { question_not_in_attempt: true });
 
-    const correctAnswer = qtype === 'matching' || qtype === 'short_answer' ? result.correct_answer : String(result.correct_option_key ?? result.correct_answer ?? '');
+    const correctAnswer = (qtype === 'matching' || qtype === 'short_answer' || qtype === 'case_study') ? result.correct_answer : String(result.correct_option_key ?? result.correct_answer ?? '');
     const updatedQuestions = [...questions];
     updatedQuestions[currentIndex] = {
       ...q,

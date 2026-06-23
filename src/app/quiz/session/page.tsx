@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { QuestionRenderer } from '@/components/quiz/questions/QuestionRenderer';
 import { formatCorrectAnswer, parseMatchingQuestion } from '@/components/quiz/questions/MatchingQuestionRenderer';
 import { resolveShortAnswerCorrectText } from '@/components/quiz/questions/ShortAnswerQuestionRenderer';
+import { resolveCaseStudyCorrectText } from '@/components/quiz/questions/CaseStudyQuestionRenderer';
 import { useQuizStore } from '@/hooks/useQuizStore';
 import { getHttpStatus } from '@/lib/api/quiz';
 import { cn } from '@/lib/utils';
@@ -124,6 +125,9 @@ export default function QuizSession() {
       const { leftItems } = parseMatchingQuestion(currentQuestion);
       return leftItems.length > 0 && leftItems.every((item) => Boolean(matchingAnswer[item.key]));
     }
+    if (qtype === 'case_based' || qtype === 'case_study') {
+      return Boolean(selectedAnswer && selectedAnswer.trim().length >= 10);
+    }
     return Boolean(selectedAnswer && selectedAnswer.trim());
   };
 
@@ -219,13 +223,21 @@ export default function QuizSession() {
                         ? `Jawaban Tepat:\n${formatCorrectAnswer(currentQuestion.correct_answer, parsedMatching.leftItems, parsedMatching.rightItems, currentQuestion.formatted_correct_answer)}`
                         : currentQuestionType === 'short_answer'
                           ? `Jawaban Tepat: ${resolveShortAnswerCorrectText(currentQuestion)}`
-                          : `Jawaban Tepat: ${String(currentQuestion.correct_answer ?? '-')}`}
+                          : (currentQuestionType === 'case_based' || currentQuestionType === 'case_study')
+                            ? `Jawaban Tepat: ${resolveCaseStudyCorrectText(currentQuestion)}`
+                            : `Jawaban Tepat: ${String(currentQuestion.correct_answer ?? '-')}`}
                   </span>
                 </div>
                 <p className="max-w-xl text-xs leading-relaxed text-gray-600 dark:text-gray-300">{currentQuestion.explanation}</p>
               </motion.div>
             ) : (
-              <p className="text-xs font-medium text-gray-400 dark:text-gray-500">{currentQuestionType === 'matching' && !isAnswerValid() ? 'Lengkapi semua pasangan terlebih dahulu.' : 'Isi atau pilih jawaban untuk memeriksa hasil.'}</p>
+              <p className="text-xs font-medium text-gray-400 dark:text-gray-500">
+                {currentQuestionType === 'matching' && !isAnswerValid()
+                  ? 'Lengkapi semua pasangan terlebih dahulu.'
+                  : (currentQuestionType === 'case_based' || currentQuestionType === 'case_study') && !isAnswerValid()
+                    ? 'Tulis jawaban minimal 10 karakter untuk memeriksa hasil.'
+                    : 'Isi atau pilih jawaban untuk memeriksa hasil.'}
+              </p>
             )}
           </div>
           {!isChecked ? (

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuizStore } from '@/hooks/useQuizStore';
 import { formatCorrectAnswer, formatUserMatchingAnswer, parseMatchingQuestion } from '@/components/quiz/questions/MatchingQuestionRenderer';
 import { resolveShortAnswerCorrectText } from '@/components/quiz/questions/ShortAnswerQuestionRenderer';
+import { resolveCaseStudyCorrectText } from '@/components/quiz/questions/CaseStudyQuestionRenderer';
 import { Trophy, CheckCircle2, XCircle, ArrowRight, RefreshCw, BookOpen, AlertCircle, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -222,9 +223,9 @@ export default function QuizSummary() {
                     } else if (qtype === 'short_answer') {
                       userDisplay = userChoice || '-';
                       correctDisplay = resolveShortAnswerCorrectText(q);
-                    } else if (qtype === 'case_based') {
+                    } else if (qtype === 'case_based' || qtype === 'case_study') {
                       userDisplay = userChoice || '-';
-                      correctDisplay = String(q.correct_answer || '-');
+                      correctDisplay = resolveCaseStudyCorrectText(q);
                     }
 
                     return (
