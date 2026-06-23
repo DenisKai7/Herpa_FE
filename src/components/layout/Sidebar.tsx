@@ -230,23 +230,26 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             className="h-full bg-slate-100/90 border-r border-slate-200 dark:bg-[#0b0f19] dark:border-slate-800 flex flex-col overflow-hidden shrink-0 transition-colors duration-200"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-zinc-50">Chats</h2>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleNewChat}
-                  className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-200/80 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                  title="New chat"
-                >
-                  <MessageSquarePlus className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={onToggle}
-                  className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-200/80 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                  title="Collapse sidebar"
-                >
-                  <PanelLeftClose className="h-5 w-5" />
-                </button>
+            <div className="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-zinc-50">Chats</h2>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleNewChat}
+                    className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-200/80 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    title="Percakapan baru"
+                  >
+                    <MessageSquarePlus className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={onToggle}
+                    aria-label="Tutup sidebar"
+                    className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:bg-slate-200/80 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                    title="Tutup sidebar"
+                  >
+                    <PanelLeftClose className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -327,15 +330,17 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         )}
       </AnimatePresence>
 
-      {/* Collapsed toggle */}
+      {/* Collapsed hover zone + toggle */}
       {!isOpen && (
-        <button
-          onClick={onToggle}
-          className="fixed top-3 left-3 z-40 p-2 rounded-xl bg-white dark:bg-[#1a1f2c] border border-slate-200 dark:border-slate-800 shadow-sm text-slate-500 dark:text-gray-400 hover:text-slate-705 dark:hover:text-gray-250 hover:bg-slate-100 dark:hover:bg-gray-850 transition-colors cursor-pointer"
-          title="Open sidebar"
-        >
-          <PanelLeftOpen className="h-5 w-5" />
-        </button>
+        <div className="group/toggle fixed left-0 top-14 h-[calc(100vh-56px)] w-12 z-40">
+          <button
+            onClick={onToggle}
+            aria-label="Buka sidebar"
+            className="absolute left-2 top-3 h-10 w-10 rounded-xl bg-white dark:bg-[#1a1f2c] border border-slate-200 dark:border-slate-800 shadow-md text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-100 dark:hover:bg-gray-800 transition-all duration-200 cursor-pointer flex items-center justify-center opacity-0 pointer-events-none group-hover/toggle:opacity-100 group-hover/toggle:pointer-events-auto"
+          >
+            <PanelLeftOpen className="h-5 w-5" />
+          </button>
+        </div>
       )}
 
       {/* Delete Confirmation Modal */}
