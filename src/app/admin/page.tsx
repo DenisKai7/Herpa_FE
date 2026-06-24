@@ -541,7 +541,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : aiError ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Endpoint AI Usage tidak diimplementasikan / offline: {aiError}
+                    Data belum tersedia atau service sedang offline.
                   </p>
                 ) : modelUsage ? (
                   <div className="space-y-4">
@@ -600,7 +600,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : graphError ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Endpoint GraphRAG tidak diimplementasikan / offline: {graphError}
+                    Data belum tersedia atau service sedang offline.
                   </p>
                 ) : graphStats ? (
                   <div className="space-y-4">
@@ -645,7 +645,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : recError ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Endpoint Recommendation Analytics tidak diimplementasikan / offline: {recError}
+                    Data belum tersedia atau service sedang offline.
                   </p>
                 ) : recAnalytics ? (
                   <div className="space-y-6">
@@ -706,7 +706,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : quizError ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Endpoint Quiz Analytics tidak diimplementasikan / offline: {quizError}
+                    Data belum tersedia atau service sedang offline.
                   </p>
                 ) : quizAnalytics ? (
                   <div className="space-y-6">
@@ -758,7 +758,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : storageError ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Endpoint Storage Stats tidak diimplementasikan / offline: {storageError}
+                    Data belum tersedia atau service sedang offline.
                   </p>
                 ) : storageStats ? (
                   <div className="space-y-6">
@@ -812,7 +812,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : errorsError ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Endpoint Error Logs tidak diimplementasikan / offline: {errorsError}
+                    Data belum tersedia atau service sedang offline.
                   </p>
                 ) : errorLogs.length > 0 ? (
                   <div className="space-y-3">

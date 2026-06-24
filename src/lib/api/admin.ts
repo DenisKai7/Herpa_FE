@@ -13,12 +13,12 @@ import type {
 export const adminApi = {
   // --- Existing endpoints (preserved) ---
   getAnalytics: async (): Promise<AdminAnalytics> => {
-    const response = await apiClient.get<AdminAnalytics>('/api/admin/analytics');
+    const response = await apiClient.get<AdminAnalytics>('/api/admin/analytics', { silent: true });
     return response.data;
   },
 
   getUsers: async (): Promise<AdminUser[]> => {
-    const response = await apiClient.get<AdminUser[]>('/api/admin/users');
+    const response = await apiClient.get<AdminUser[]>('/api/admin/users', { silent: true });
     return response.data;
   },
 
@@ -30,38 +30,39 @@ export const adminApi = {
   // --- New endpoints ---
 
   getSystemHealth: async (): Promise<SystemHealthResponse> => {
-    const response = await apiClient.get<SystemHealthResponse>('/api/admin/health');
+    const response = await apiClient.get<SystemHealthResponse>('/api/admin/health', { silent: true });
     return response.data;
   },
 
   getGraphStats: async (): Promise<GraphStatsResponse> => {
-    const response = await apiClient.get<GraphStatsResponse>('/api/admin/graph-stats');
+    const response = await apiClient.get<GraphStatsResponse>('/api/admin/graph-stats', { silent: true });
     return response.data;
   },
 
   getModelUsage: async (): Promise<ModelUsageResponse> => {
-    const response = await apiClient.get<ModelUsageResponse>('/api/admin/model-usage');
+    const response = await apiClient.get<ModelUsageResponse>('/api/admin/model-usage', { silent: true });
     return response.data;
   },
 
   getRecommendationAnalytics: async (): Promise<RecommendationAnalyticsResponse> => {
-    const response = await apiClient.get<RecommendationAnalyticsResponse>('/api/admin/recommendation-analytics');
+    const response = await apiClient.get<RecommendationAnalyticsResponse>('/api/admin/recommendation-analytics', { silent: true });
     return response.data;
   },
 
   getQuizAnalytics: async (): Promise<QuizAnalyticsResponse> => {
-    const response = await apiClient.get<QuizAnalyticsResponse>('/api/admin/quiz-analytics');
+    const response = await apiClient.get<QuizAnalyticsResponse>('/api/admin/quiz-analytics', { silent: true });
     return response.data;
   },
 
   getStorageStats: async (): Promise<StorageStatsResponse> => {
-    const response = await apiClient.get<StorageStatsResponse>('/api/admin/storage-stats');
+    const response = await apiClient.get<StorageStatsResponse>('/api/admin/storage-stats', { silent: true });
     return response.data;
   },
 
   getRecentErrors: async (params?: { limit?: number; unresolved_only?: boolean }): Promise<ErrorLogResponse> => {
     const response = await apiClient.get<ErrorLogResponse>('/api/admin/errors', {
       params: { limit: params?.limit ?? 50, unresolved_only: params?.unresolved_only ?? true },
+      silent: true,
     });
     return response.data;
   },
