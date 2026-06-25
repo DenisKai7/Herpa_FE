@@ -571,14 +571,22 @@ export default function AdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {modelUsage.entries?.map((entry, idx) => (
-                            <tr key={idx} className="border-b border-gray-50 dark:border-gray-800">
-                              <td className="py-2.5 font-medium">{entry.model_mode}</td>
-                              <td className="py-2.5 text-gray-500">{entry.persona}</td>
-                              <td className="py-2.5">{entry.request_count}</td>
-                              <td className="py-2.5">{(entry.avg_latency_ms / 1000).toFixed(2)}s</td>
+                          {modelUsage.entries && modelUsage.entries.length > 0 ? (
+                            modelUsage.entries.map((entry, idx) => (
+                              <tr key={idx} className="border-b border-gray-50 dark:border-gray-800">
+                                <td className="py-2.5 font-medium">{entry.model_mode}</td>
+                                <td className="py-2.5 text-gray-500">{entry.persona}</td>
+                                <td className="py-2.5">{entry.request_count}</td>
+                                <td className="py-2.5">{(entry.avg_latency_ms / 1000).toFixed(2)}s</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={4} className="py-6 text-center text-gray-400">
+                                Belum ada data detail.
+                              </td>
                             </tr>
-                          ))}
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -780,18 +788,22 @@ export default function AdminDashboard() {
                     <div>
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Buckets Penyimpanan</h4>
                       <div className="space-y-3">
-                        {storageStats.buckets?.map((bucket) => (
-                          <div key={bucket.name} className="p-3 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50/50 dark:bg-gray-950/20 text-xs">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-bold text-gray-700 dark:text-gray-300 capitalize">{bucket.name.replace('-', ' ')}</span>
-                              <span className="text-[10px] text-gray-400">{bucket.object_count} File</span>
+                        {storageStats.buckets && storageStats.buckets.length > 0 ? (
+                          storageStats.buckets.map((bucket) => (
+                            <div key={bucket.name} className="p-3 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50/50 dark:bg-gray-950/20 text-xs">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-bold text-gray-700 dark:text-gray-300 capitalize">{bucket.name.replace('-', ' ')}</span>
+                                <span className="text-[10px] text-gray-400">{bucket.object_count} File</span>
+                              </div>
+                              <div className="flex justify-between text-gray-500">
+                                <span>Ukuran Terpakai:</span>
+                                <span className="font-medium text-gray-700 dark:text-gray-300">{(bucket.size_bytes / 1024).toFixed(1)} KB</span>
+                              </div>
                             </div>
-                            <div className="flex justify-between text-gray-500">
-                              <span>Ukuran Terpakai:</span>
-                              <span className="font-medium text-gray-700 dark:text-gray-300">{(bucket.size_bytes / 1024).toFixed(1)} KB</span>
-                            </div>
-                          </div>
-                        ))}
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-400 text-center py-6">Belum ada data detail.</p>
+                        )}
                       </div>
                     </div>
                   </div>
