@@ -347,8 +347,27 @@ export type SymptomItem = {
   aliases?: string[];
 };
 
+export type BotanicalDescription = {
+  summary?: string;
+  morphology?: string[];
+  organoleptic?: string[];
+};
+
+export type DataQuality = {
+  source?: 'knowledge_graph' | 'curated_fallback' | 'mixed' | 'none';
+  has_kg_data?: boolean;
+  has_curated_fallback?: boolean;
+  missing_sections?: string[];
+  disclaimer?: string;
+};
+
 export type HerbEnrichmentDetail = {
   description?: string;
+  herb_id?: string;
+  common_name?: string;
+  scientific_name?: string;
+  family?: string;
+  botanical_description?: BotanicalDescription;
   traditional_uses?: TraditionalUseItem[];
   preparation_methods?: PreparationMethodItem[];
   usage_guidelines?: UsageGuidelineItem[];
@@ -365,6 +384,7 @@ export type HerbEnrichmentDetail = {
   claims?: ClaimEvidenceItem[];
   related_symptoms?: SymptomItem[];
   sources?: SourceReference[];
+  data_quality?: DataQuality;
 };
 
 export type Persona = 'umum' | 'pelajar' | 'peneliti' | 'tenaga_medis';
@@ -689,10 +709,17 @@ export async function analyzeHerbalComplaint(
 
 export async function getHerbRecommendationDetail(
   herbId: string,
+  options?: { common_name?: string; scientific_name?: string },
 ): Promise<HerbEnrichmentDetail> {
   try {
+    const params = new URLSearchParams();
+    if (options?.common_name) params.set('common_name', options.common_name);
+    if (options?.scientific_name) params.set('scientific_name', options.scientific_name);
+    const qs = params.toString();
+    const url = `/api/herbal-recommendations/herbs/${encodeURIComponent(herbId)}/detail${qs ? `?${qs}` : ''}`;
+
     const response = await apiClient.get<{ detail?: HerbEnrichmentDetail } | HerbEnrichmentDetail>(
-      `/api/herbal-recommendations/herbs/${encodeURIComponent(herbId)}/detail`,
+      url,
       { timeout: 30000 },
     );
 

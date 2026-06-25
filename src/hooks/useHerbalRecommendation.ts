@@ -40,7 +40,10 @@ export function useHerbalRecommendation() {
     try {
       setDetailLoadingId(herbId);
       setDetailErrorByHerbId((prev) => ({ ...prev, [herbId]: '' }));
-      const detail = await getHerbRecommendationDetail(herbId);
+      const detail = await getHerbRecommendationDetail(herbId, {
+        common_name: item.local_name || undefined,
+        scientific_name: item.scientific_name || undefined,
+      });
       setDetailByHerbId((prev) => ({ ...prev, [herbId]: detail }));
     } catch (err) {
       setDetailErrorByHerbId((prev) => ({

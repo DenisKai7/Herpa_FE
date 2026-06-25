@@ -104,8 +104,40 @@ function renderSafetyStatusBadge(candidate: HerbalCandidate) {
   );
 }
 
+function uniqueText(values?: unknown[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values ?? []) {
+    const text = typeof value === 'string'
+      ? value.trim()
+      : typeof value === 'object' && value !== null
+        ? String((value as Record<string, unknown>).name ?? (value as Record<string, unknown>).title ?? '').trim()
+        : String(value ?? '').trim();
+    const key = text.toLowerCase().replace(/\s+/g, ' ');
+
+    if (!text || seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(text);
+  }
+
+  return result;
+}
+
+function getMatchedSymptomSummary(candidate: HerbalCandidate): string | null {
+  const symptoms = uniqueText(candidate.matched_symptoms?.length ? candidate.matched_symptoms : candidate.related_symptoms).slice(0, 3);
+  if (symptoms.length > 0) return `Cocok untuk: ${symptoms.join(', ')}`;
+
+  const reason = candidate.match_reasons?.find((item) => item?.trim());
+  if (reason) return reason;
+
+  return candidate.explanation || candidate.reason || null;
+}
+
 export function HerbalCandidateCard({ candidate, index, onClick }: HerbalCandidateCardProps) {
   const vs = getVerificationSourceFromCandidate(candidate);
+  const symptomSummary = getMatchedSymptomSummary(candidate);
 
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-250 dark:border-gray-800 rounded-3xl p-5 hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
@@ -133,6 +165,12 @@ export function HerbalCandidateCard({ candidate, index, onClick }: HerbalCandida
             {getEvidenceLabelV2(candidate)}
           </span>
         </div>
+
+        {symptomSummary && (
+          <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 font-semibold line-clamp-2">
+            {symptomSummary}
+          </p>
+        )}
 
         {/* Verification Status */}
         <div className="pt-2 flex items-center justify-between border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400">

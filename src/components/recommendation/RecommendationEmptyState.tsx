@@ -42,9 +42,9 @@ export function RecommendationEmptyState({
           Rekomendasi Kata Kunci
         </span>
         <div className="flex flex-wrap justify-center gap-2">
-          {terms.map((term) => (
+          {terms.map((term, index) => (
             <button
-              key={term}
+              key={`suggested-term-${term}-${index}`}
               type="button"
               onClick={() => onSuggestedClick(term)}
               className="text-xs font-semibold px-3 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-850 rounded-full transition-colors cursor-pointer text-gray-700 dark:text-gray-300"
