@@ -108,3 +108,104 @@ export interface ErrorLogResponse {
   total: number;
   unresolved_count: number;
 }
+
+// --- AI Usage Management ---
+export interface AIUsageLog {
+  id: number;
+  user_id: string | null;
+  request_id: string | null;
+  model_name: string;
+  input_tokens: number;
+  output_tokens: number;
+  latency_ms: number;
+  success: boolean;
+  error_code: string | null;
+  persona: string | null;
+  endpoint: string | null;
+  provider: string;
+  created_at: string;
+}
+
+export interface AIUsageListParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  user_id?: string;
+  persona?: string;
+  model_name?: string;
+  endpoint?: string;
+  provider?: string;
+  status?: string;
+  date_from?: string;
+  date_to?: string;
+  sort?: string;
+  sort_dir?: string;
+}
+
+export interface AIUsageListResponse {
+  logs: AIUsageLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AIUsageDetail {
+  id: number;
+  user_id: string | null;
+  request_id: string | null;
+  model_name: string;
+  input_tokens: number;
+  output_tokens: number;
+  latency_ms: number;
+  success: boolean;
+  error_code: string | null;
+  persona: string | null;
+  endpoint: string | null;
+  provider: string;
+  prompt_text: string | null;
+  response_text: string | null;
+  retrieval_context: unknown;
+  created_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+}
+
+export interface AIUsageDashboardStats {
+  total_requests: number;
+  total_tokens_input: number;
+  total_tokens_output: number;
+  total_tokens: number;
+  active_users: number;
+  error_rate: number;
+  avg_latency_ms: number;
+  active_models: number;
+  active_personas: number;
+}
+
+export interface AIUsageChartsData {
+  daily_requests: Array<{ date: string; requests: number }>;
+  daily_tokens: Array<{ date: string; tokens: number }>;
+  by_persona: Array<{ persona: string; count: number }>;
+  by_model: Array<{ model: string; count: number }>;
+  hourly_heatmap: Array<{ hour: number; count: number }>;
+  top_users: Array<{ user_id: string; count: number }>;
+  top_endpoints: Array<{ endpoint: string; count: number }>;
+  error_analytics: {
+    by_endpoint: Array<{ endpoint: string; errors: number }>;
+    by_model: Array<{ model: string; errors: number }>;
+    by_day: Array<{ date: string; errors: number }>;
+  };
+  latency_stats: {
+    min: number;
+    max: number;
+    avg: number;
+    median: number;
+    p95: number;
+  };
+  cost_estimation: {
+    total_tokens: number;
+    total_latency_ms: number;
+    throughput_tokens_per_sec: number;
+    provider: string;
+  };
+}

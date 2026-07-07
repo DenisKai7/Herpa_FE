@@ -10,8 +10,6 @@ import {
   Activity,
   ArrowLeft,
   Shield,
-  UserCog,
-  Search,
   Cpu,
   Database,
   Leaf,
@@ -26,20 +24,19 @@ import {
 import { useAuthStore } from '@/hooks/useAuthStore';
 import { adminApi } from '@/lib/api/admin';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
 import { Spinner, Skeleton } from '@/components/ui/Spinner';
-import type { AdminAnalytics, AdminUser, UserRole } from '@/types';
+import type { AdminAnalytics } from '@/types';
 import type {
   SystemHealthResponse,
   GraphStatsResponse,
-  ModelUsageResponse,
   RecommendationAnalyticsResponse,
   QuizAnalyticsResponse,
   StorageStatsResponse,
   ErrorLogEntry,
 } from '@/types/admin';
-import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
+import { UsersTab } from './users/UsersTab';
+import { AIUsageTab } from './ai-usage/AIUsageTab';
 
 type TabId =
   | 'overview'
@@ -61,20 +58,6 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [health, setHealth] = useState<SystemHealthResponse | null>(null);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
-
-  // Users states
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [roleTarget, setRoleTarget] = useState<AdminUser | null>(null);
-  const [newRole, setNewRole] = useState<UserRole>('user');
-  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
-
-  // AI Usage states
-  const [modelUsage, setModelUsage] = useState<ModelUsageResponse | null>(null);
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
 
   // GraphRAG states
   const [graphStats, setGraphStats] = useState<GraphStatsResponse | null>(null);
@@ -140,33 +123,6 @@ export default function AdminDashboard() {
       });
     } finally {
       setIsLoadingOverview(false);
-    }
-  }, []);
-
-  // Fetch Users
-  const fetchUsersData = useCallback(async () => {
-    setIsLoadingUsers(true);
-    try {
-      const usersData = await adminApi.getUsers();
-      setUsers(usersData);
-    } catch (err) {
-      console.error('Failed to load users:', err);
-    } finally {
-      setIsLoadingUsers(false);
-    }
-  }, []);
-
-  // Fetch AI Usage
-  const fetchAIUsageData = useCallback(async () => {
-    setIsLoadingAI(true);
-    setAiError(null);
-    try {
-      const data = await adminApi.getModelUsage();
-      setModelUsage(data);
-    } catch (err: any) {
-      setAiError(err?.response?.data?.detail || err.message || 'Endpoint not implemented');
-    } finally {
-      setIsLoadingAI(false);
     }
   }, []);
 
@@ -246,10 +202,6 @@ export default function AdminDashboard() {
 
     if (activeTab === 'overview') {
       fetchOverviewData();
-    } else if (activeTab === 'users') {
-      fetchUsersData();
-    } else if (activeTab === 'ai_usage') {
-      fetchAIUsageData();
     } else if (activeTab === 'graphrag') {
       fetchGraphStatsData();
     } else if (activeTab === 'recommendations') {
@@ -265,37 +217,12 @@ export default function AdminDashboard() {
     activeTab,
     user,
     fetchOverviewData,
-    fetchUsersData,
-    fetchAIUsageData,
     fetchGraphStatsData,
     fetchRecData,
     fetchQuizData,
     fetchStorageData,
     fetchErrorsData,
   ]);
-
-  const handleRoleUpdate = async () => {
-    if (!roleTarget) return;
-    setIsUpdatingRole(true);
-    try {
-      await adminApi.updateUserRole({ user_id: roleTarget.id, role: newRole });
-      setUsers((prev) =>
-        prev.map((u) => (u.id === roleTarget.id ? { ...u, role: newRole } : u))
-      );
-      toast.success(`Role updated to ${newRole}`);
-      setRoleModalOpen(false);
-    } catch {
-      // Handled by client toast interceptor
-    } finally {
-      setIsUpdatingRole(false);
-    }
-  };
-
-  const filteredUsers = users.filter(
-    (u) =>
-      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   if (!isInitialized || !user || user.role !== 'admin') {
     return (
@@ -353,8 +280,6 @@ export default function AdminDashboard() {
           <button
             onClick={() => {
               if (activeTab === 'overview') fetchOverviewData();
-              else if (activeTab === 'users') fetchUsersData();
-              else if (activeTab === 'ai_usage') fetchAIUsageData();
               else if (activeTab === 'graphrag') fetchGraphStatsData();
               else if (activeTab === 'recommendations') fetchRecData();
               else if (activeTab === 'quiz') fetchQuizData();
@@ -454,148 +379,10 @@ export default function AdminDashboard() {
             )}
 
             {/* USERS TAB */}
-            {activeTab === 'users' && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">Manajemen Pengguna</h3>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Cari user..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 text-xs bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl focus:outline-none focus:border-purple-500 transition-all text-gray-800 dark:text-gray-200"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-                  {isLoadingUsers ? (
-                    <div className="p-6 space-y-3">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Skeleton key={i} className="h-10 w-full" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
-                            <th className="text-left px-5 py-3 font-semibold text-gray-500">Nama</th>
-                            <th className="text-left px-5 py-3 font-semibold text-gray-500">Email</th>
-                            <th className="text-left px-5 py-3 font-semibold text-gray-500">Instansi</th>
-                            <th className="text-left px-5 py-3 font-semibold text-gray-500">Role</th>
-                            <th className="text-right px-5 py-3 font-semibold text-gray-500">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredUsers.map((u) => (
-                            <tr key={u.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/40 transition-colors">
-                              <td className="px-5 py-3.5 font-medium text-gray-800 dark:text-gray-200">{u.full_name || u.email.split('@')[0]}</td>
-                              <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">{u.email}</td>
-                              <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">{u.instansi || '-'}</td>
-                              <td className="px-5 py-3.5">
-                                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', u.role === 'admin' ? 'bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800' : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700')}>
-                                  {u.role}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3.5 text-right">
-                                <button
-                                  onClick={() => {
-                                    setRoleTarget(u);
-                                    setNewRole(u.role === 'admin' ? 'user' : 'admin');
-                                    setRoleModalOpen(true);
-                                  }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <UserCog className="h-3 w-3" />
-                                  Ubah Role
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          {filteredUsers.length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="px-5 py-8 text-center text-gray-400">
-                                Tidak ada user ditemukan.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {activeTab === 'users' && <UsersTab />}
 
             {/* AI USAGE TAB */}
-            {activeTab === 'ai_usage' && (
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Penggunaan LLM & Token AI</h3>
-                {isLoadingAI ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-6 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : aiError ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Data belum tersedia atau service sedang offline.
-                  </p>
-                ) : modelUsage ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Total Permintaan</p>
-                        <p className="text-xl font-bold mt-1">{modelUsage.total_requests}</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Rata-rata Latensi</p>
-                        <p className="text-xl font-bold mt-1">{(modelUsage.avg_latency_ms / 1000).toFixed(2)}s</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Tingkat Error</p>
-                        <p className="text-xl font-bold mt-1">{(modelUsage.error_rate * 100).toFixed(1)}%</p>
-                      </div>
-                    </div>
-                    {/* Render table/chart placeholder for entries */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-gray-100 dark:border-gray-800">
-                            <th className="text-left py-2 font-semibold text-gray-500">Model Mode</th>
-                            <th className="text-left py-2 font-semibold text-gray-500">Persona</th>
-                            <th className="text-left py-2 font-semibold text-gray-500">Requests</th>
-                            <th className="text-left py-2 font-semibold text-gray-500">Avg Latency</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {modelUsage.entries && modelUsage.entries.length > 0 ? (
-                            modelUsage.entries.map((entry, idx) => (
-                              <tr key={idx} className="border-b border-gray-50 dark:border-gray-800">
-                                <td className="py-2.5 font-medium">{entry.model_mode}</td>
-                                <td className="py-2.5 text-gray-500">{entry.persona}</td>
-                                <td className="py-2.5">{entry.request_count}</td>
-                                <td className="py-2.5">{(entry.avg_latency_ms / 1000).toFixed(2)}s</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={4} className="py-6 text-center text-gray-400">
-                                Belum ada data detail.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">Belum ada data usage LLM.</p>
-                )}
-              </div>
-            )}
+            {activeTab === 'ai_usage' && <AIUsageTab />}
 
             {/* GRAPHRAG TAB */}
             {activeTab === 'graphrag' && (
@@ -851,33 +638,6 @@ export default function AdminDashboard() {
           </motion.div>
         </AnimatePresence>
       </div>
-
-      {/* Role Update Modal */}
-      <Modal isOpen={roleModalOpen} onClose={() => setRoleModalOpen(false)} title="Ubah Role Pengguna">
-        {roleTarget && (
-          <div className="space-y-4">
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Perbarui role untuk <span className="font-bold text-gray-800 dark:text-gray-200">{roleTarget.full_name || roleTarget.email}</span>:
-            </p>
-            <select
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value as UserRole)}
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl text-xs focus:outline-none focus:border-purple-500 transition-all bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200"
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" size="sm" onClick={() => setRoleModalOpen(false)}>
-                Batal
-              </Button>
-              <Button size="sm" onClick={handleRoleUpdate} isLoading={isUpdatingRole}>
-                Simpan Perubahan
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

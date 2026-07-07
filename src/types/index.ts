@@ -1,6 +1,7 @@
 // --- User & Auth ---
 
 export type UserRole = 'admin' | 'user';
+export type AccountStatus = 'active' | 'suspended' | 'deleted';
 export type AiMode = 'tenaga_medis' | 'peneliti' | 'pelajar' | 'umum';
 export type MessageRole = 'user' | 'ai';
 
@@ -241,10 +242,18 @@ export interface UpdateUserRoleRequest {
 export interface AdminUser {
   id: string;
   email: string;
-  full_name: string;
+  full_name: string | null;
+  username?: string | null;
   role: UserRole;
-  instansi: string;
+  persona: string | null;
+  account_status: AccountStatus;
+  instansi: string | null;
+  provinsi?: string | null;
+  kota?: string | null;
+  last_active_at: string | null;
   created_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
 }
 
 // --- API Error ---
