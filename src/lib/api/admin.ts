@@ -13,6 +13,11 @@ import type {
   AIUsageDetail,
   AIUsageDashboardStats,
   AIUsageChartsData,
+  GraphDashboardStats,
+  GraphSchema,
+  GraphNode,
+  GraphRelationship,
+  GraphVisualizationData,
 } from '@/types/admin';
 
 // ── Types for CRUD ──
@@ -187,6 +192,86 @@ export const adminApi = {
 
   exportAIUsagePDF: async (params?: AIUsageListParams): Promise<Blob> => {
     const response = await apiClient.get('/api/admin/ai-usage/export/pdf', { params, responseType: 'blob' });
+    return response.data;
+  },
+
+  // --- GraphRAG Management ---
+
+  getGraphDashboard: async (): Promise<GraphDashboardStats> => {
+    const response = await apiClient.get<GraphDashboardStats>('/api/admin/graphrag/dashboard', { silent: true });
+    return response.data;
+  },
+
+  getGraphSchema: async (): Promise<GraphSchema> => {
+    const response = await apiClient.get<GraphSchema>('/api/admin/graphrag/schema', { silent: true });
+    return response.data;
+  },
+
+  getGraphNodes: async (params?: { label?: string; search?: string; limit?: number; offset?: number; sort?: string; sort_dir?: string }): Promise<{ nodes: GraphNode[]; total: number; limit: number; offset: number }> => {
+    const response = await apiClient.get('/api/admin/graphrag/nodes', { params, silent: true });
+    return response.data;
+  },
+
+  getGraphNode: async (nodeId: number): Promise<GraphNode> => {
+    const response = await apiClient.get<GraphNode>(`/api/admin/graphrag/nodes/${nodeId}`, { silent: true });
+    return response.data;
+  },
+
+  createGraphNode: async (payload: { label: string; properties: Record<string, unknown> }): Promise<GraphNode> => {
+    const response = await apiClient.post<GraphNode>('/api/admin/graphrag/nodes', payload);
+    return response.data;
+  },
+
+  updateGraphNode: async (nodeId: number, properties: Record<string, unknown>): Promise<GraphNode> => {
+    const response = await apiClient.put<GraphNode>(`/api/admin/graphrag/nodes/${nodeId}`, { properties });
+    return response.data;
+  },
+
+  deleteGraphNode: async (nodeId: number): Promise<void> => {
+    await apiClient.delete(`/api/admin/graphrag/nodes/${nodeId}`);
+  },
+
+  bulkDeleteGraphNodes: async (nodeIds: number[]): Promise<{ deleted_count: number }> => {
+    const response = await apiClient.post<{ deleted_count: number }>('/api/admin/graphrag/nodes/bulk-delete', { node_ids: nodeIds });
+    return response.data;
+  },
+
+  getGraphRelationships: async (params?: { source_id?: number; target_id?: number; rel_type?: string; limit?: number; offset?: number }): Promise<{ relationships: GraphRelationship[]; total: number; limit: number; offset: number }> => {
+    const response = await apiClient.get('/api/admin/graphrag/relationships', { params, silent: true });
+    return response.data;
+  },
+
+  createGraphRelationship: async (payload: { source_id: number; target_id: number; rel_type: string; properties?: Record<string, unknown> }): Promise<GraphRelationship> => {
+    const response = await apiClient.post<GraphRelationship>('/api/admin/graphrag/relationships', payload);
+    return response.data;
+  },
+
+  deleteGraphRelationship: async (relId: number): Promise<void> => {
+    await apiClient.delete(`/api/admin/graphrag/relationships/${relId}`);
+  },
+
+  searchGraphNodes: async (q: string, label?: string, limit?: number): Promise<GraphNode[]> => {
+    const response = await apiClient.get<GraphNode[]>('/api/admin/graphrag/search', { params: { q, label, limit }, silent: true });
+    return response.data;
+  },
+
+  getGraphVisualization: async (params?: { limit?: number; label?: string }): Promise<GraphVisualizationData> => {
+    const response = await apiClient.get<GraphVisualizationData>('/api/admin/graphrag/graph', { params, silent: true });
+    return response.data;
+  },
+
+  expandGraphNode: async (nodeId: number, depth?: number): Promise<GraphVisualizationData> => {
+    const response = await apiClient.get<GraphVisualizationData>(`/api/admin/graphrag/graph/expand/${nodeId}`, { params: { depth }, silent: true });
+    return response.data;
+  },
+
+  exportGraphJSON: async (params?: { label?: string; limit?: number }): Promise<unknown> => {
+    const response = await apiClient.get('/api/admin/graphrag/export/json', { params });
+    return response.data;
+  },
+
+  exportGraphCSV: async (params?: { label?: string; limit?: number }): Promise<Blob> => {
+    const response = await apiClient.get('/api/admin/graphrag/export/csv', { params, responseType: 'blob' });
     return response.data;
   },
 };

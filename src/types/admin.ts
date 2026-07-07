@@ -209,3 +209,51 @@ export interface AIUsageChartsData {
     provider: string;
   };
 }
+
+// --- GraphRAG Management ---
+export interface GraphDashboardStats {
+  status: string;
+  total_nodes: number;
+  total_relationships: number;
+  total_labels: number;
+  herb_count: number;
+  compound_count: number;
+  traditional_use_count: number;
+  preparation_method_count: number;
+  usage_guideline_count: number;
+  safety_warning_count: number;
+  source_count: number;
+  benefit_count: number;
+  symptom_count: number;
+  family_count: number;
+  neo4j_latency_ms: number;
+}
+
+export interface GraphSchema {
+  labels: string[];
+  relationship_types: string[];
+  properties: string[];
+}
+
+export interface GraphNode {
+  __neo4j_id: number;
+  __labels: string[];
+  [key: string]: unknown;
+}
+
+export interface GraphRelationship {
+  rel_id: number;
+  rel_type: string;
+  properties: Record<string, unknown>;
+  source_id: number;
+  source_labels: string[];
+  source_name: string;
+  target_id: number;
+  target_labels: string[];
+  target_name: string;
+}
+
+export interface GraphVisualizationData {
+  nodes: Array<{ id: number; labels: string[]; name: string }>;
+  edges: Array<{ id?: number; source: number; target: number; type: string; source_name?: string; target_name?: string }>;
+}

@@ -28,7 +28,6 @@ import { Spinner, Skeleton } from '@/components/ui/Spinner';
 import type { AdminAnalytics } from '@/types';
 import type {
   SystemHealthResponse,
-  GraphStatsResponse,
   RecommendationAnalyticsResponse,
   QuizAnalyticsResponse,
   StorageStatsResponse,
@@ -37,6 +36,7 @@ import type {
 import { cn } from '@/lib/utils';
 import { UsersTab } from './users/UsersTab';
 import { AIUsageTab } from './ai-usage/AIUsageTab';
+import { GraphRAGTab } from './graphrag/GraphRAGTab';
 
 type TabId =
   | 'overview'
@@ -58,11 +58,6 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [health, setHealth] = useState<SystemHealthResponse | null>(null);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
-
-  // GraphRAG states
-  const [graphStats, setGraphStats] = useState<GraphStatsResponse | null>(null);
-  const [isLoadingGraph, setIsLoadingGraph] = useState(false);
-  const [graphError, setGraphError] = useState<string | null>(null);
 
   // Recommendations states
   const [recAnalytics, setRecAnalytics] = useState<RecommendationAnalyticsResponse | null>(null);
@@ -123,20 +118,6 @@ export default function AdminDashboard() {
       });
     } finally {
       setIsLoadingOverview(false);
-    }
-  }, []);
-
-  // Fetch GraphRAG stats
-  const fetchGraphStatsData = useCallback(async () => {
-    setIsLoadingGraph(true);
-    setGraphError(null);
-    try {
-      const data = await adminApi.getGraphStats();
-      setGraphStats(data);
-    } catch (err: any) {
-      setGraphError(err?.response?.data?.detail || err.message || 'Endpoint not implemented');
-    } finally {
-      setIsLoadingGraph(false);
     }
   }, []);
 
@@ -202,8 +183,6 @@ export default function AdminDashboard() {
 
     if (activeTab === 'overview') {
       fetchOverviewData();
-    } else if (activeTab === 'graphrag') {
-      fetchGraphStatsData();
     } else if (activeTab === 'recommendations') {
       fetchRecData();
     } else if (activeTab === 'quiz') {
@@ -217,7 +196,6 @@ export default function AdminDashboard() {
     activeTab,
     user,
     fetchOverviewData,
-    fetchGraphStatsData,
     fetchRecData,
     fetchQuizData,
     fetchStorageData,
@@ -280,7 +258,6 @@ export default function AdminDashboard() {
           <button
             onClick={() => {
               if (activeTab === 'overview') fetchOverviewData();
-              else if (activeTab === 'graphrag') fetchGraphStatsData();
               else if (activeTab === 'recommendations') fetchRecData();
               else if (activeTab === 'quiz') fetchQuizData();
               else if (activeTab === 'storage') fetchStorageData();
@@ -385,49 +362,7 @@ export default function AdminDashboard() {
             {activeTab === 'ai_usage' && <AIUsageTab />}
 
             {/* GRAPHRAG TAB */}
-            {activeTab === 'graphrag' && (
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Statistik Pengetahuan GraphRAG (Neo4j)</h3>
-                {isLoadingGraph ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-6 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : graphError ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Data belum tersedia atau service sedang offline.
-                  </p>
-                ) : graphStats ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[
-                        { label: 'Herbs/Tanaman', value: graphStats.herb_count },
-                        { label: 'Senyawa Aktif', value: graphStats.compound_count },
-                        { label: 'Penggunaan Tradisional', value: graphStats.traditional_use_count },
-                        { label: 'Metode Pengolahan', value: graphStats.preparation_method_count },
-                      ].map((item) => (
-                        <div key={item.label} className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wider">{item.label}</p>
-                          <p className="text-xl font-bold mt-1">{item.value.toLocaleString()}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20 text-xs space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Latensi Neo4j Query:</span>
-                        <span className="font-semibold">{graphStats.neo4j_latency_ms} ms</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Status Indeks Fulltext:</span>
-                        <span>{renderHealthBadge(graphStats.fulltext_index_status)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">Belum ada data knowledge graph.</p>
-                )}
-              </div>
-            )}
+            {activeTab === 'graphrag' && <GraphRAGTab />}
 
             {/* RECOMMENDATIONS TAB */}
             {activeTab === 'recommendations' && (
