@@ -18,6 +18,9 @@ import type {
   GraphNode,
   GraphRelationship,
   GraphVisualizationData,
+  RecommendationSession,
+  RecommendationDashboardStats,
+  RecommendationChartsData,
 } from '@/types/admin';
 
 // ── Types for CRUD ──
@@ -272,6 +275,37 @@ export const adminApi = {
 
   exportGraphCSV: async (params?: { label?: string; limit?: number }): Promise<Blob> => {
     const response = await apiClient.get('/api/admin/graphrag/export/csv', { params, responseType: 'blob' });
+    return response.data;
+  },
+
+  // --- Admin Recommendations ---
+
+  getRecommendationSessions: async (params?: { limit?: number; offset?: number; search?: string; status?: string; date_from?: string; date_to?: string; sort?: string; sort_dir?: string }): Promise<{ sessions: RecommendationSession[]; total: number; limit: number; offset: number }> => {
+    const response = await apiClient.get('/api/admin/recommendations', { params, silent: true });
+    return response.data;
+  },
+
+  getRecommendationDetail: async (sessionId: string): Promise<RecommendationSession> => {
+    const response = await apiClient.get<RecommendationSession>(`/api/admin/recommendations/${sessionId}`, { silent: true });
+    return response.data;
+  },
+
+  deleteRecommendationSession: async (sessionId: string): Promise<void> => {
+    await apiClient.delete(`/api/admin/recommendations/${sessionId}`);
+  },
+
+  getRecommendationDashboard: async (): Promise<RecommendationDashboardStats> => {
+    const response = await apiClient.get<RecommendationDashboardStats>('/api/admin/recommendations/dashboard', { silent: true });
+    return response.data;
+  },
+
+  getRecommendationCharts: async (): Promise<RecommendationChartsData> => {
+    const response = await apiClient.get<RecommendationChartsData>('/api/admin/recommendations/charts', { silent: true });
+    return response.data;
+  },
+
+  exportRecommendationsCSV: async (): Promise<Blob> => {
+    const response = await apiClient.get('/api/admin/recommendations/export/csv', { responseType: 'blob' });
     return response.data;
   },
 };

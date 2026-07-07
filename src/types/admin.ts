@@ -257,3 +257,48 @@ export interface GraphVisualizationData {
   nodes: Array<{ id: number; labels: string[]; name: string }>;
   edges: Array<{ id?: number; source: number; target: number; type: string; source_name?: string; target_name?: string }>;
 }
+
+// --- Admin Recommendations ---
+export interface RecommendationSession {
+  id: string;
+  user_id: string;
+  complaint: string;
+  persona: string;
+  status: string;
+  results_count: number;
+  created_at: string;
+  input?: unknown;
+  results?: Array<{
+    id: string;
+    plant_id: string;
+    local_name: string;
+    scientific_name: string;
+    relevance_score: number;
+    result: unknown;
+  }>;
+}
+
+export interface RecommendationDashboardStats {
+  total_sessions: number;
+  total_results: number;
+  sessions_today: number;
+  sessions_this_week: number;
+  sessions_this_month: number;
+  success_rate: number;
+  failure_rate: number;
+  no_result_rate: number;
+  avg_latency_ms: number;
+  top_complaints: Array<{ complaint: string; count: number }>;
+  top_herbs: Array<{ herb: string; count: number }>;
+  by_persona: Array<{ persona: string; count: number }>;
+  daily: Array<{ date: string; count: number }>;
+}
+
+export interface RecommendationChartsData {
+  daily_sessions: Array<{ date: string; count: number }>;
+  by_persona: Array<{ persona: string; count: number }>;
+  top_herbs: Array<{ herb: string; count: number }>;
+  top_complaints: Array<{ complaint: string; count: number }>;
+  success_vs_failed: { success: number; failed: number; no_result: number };
+  hourly_heatmap: Array<{ hour: number; count: number }>;
+}

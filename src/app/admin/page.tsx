@@ -28,7 +28,6 @@ import { Spinner, Skeleton } from '@/components/ui/Spinner';
 import type { AdminAnalytics } from '@/types';
 import type {
   SystemHealthResponse,
-  RecommendationAnalyticsResponse,
   QuizAnalyticsResponse,
   StorageStatsResponse,
   ErrorLogEntry,
@@ -37,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { UsersTab } from './users/UsersTab';
 import { AIUsageTab } from './ai-usage/AIUsageTab';
 import { GraphRAGTab } from './graphrag/GraphRAGTab';
+import RecommendationTab from './recommendations/RecommendationTab';
 
 type TabId =
   | 'overview'
@@ -58,11 +58,6 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [health, setHealth] = useState<SystemHealthResponse | null>(null);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
-
-  // Recommendations states
-  const [recAnalytics, setRecAnalytics] = useState<RecommendationAnalyticsResponse | null>(null);
-  const [isLoadingRec, setIsLoadingRec] = useState(false);
-  const [recError, setRecError] = useState<string | null>(null);
 
   // Quiz states
   const [quizAnalytics, setQuizAnalytics] = useState<QuizAnalyticsResponse | null>(null);
@@ -121,20 +116,6 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Fetch Recommendations analytics
-  const fetchRecData = useCallback(async () => {
-    setIsLoadingRec(true);
-    setRecError(null);
-    try {
-      const data = await adminApi.getRecommendationAnalytics();
-      setRecAnalytics(data);
-    } catch (err: any) {
-      setRecError(err?.response?.data?.detail || err.message || 'Endpoint not implemented');
-    } finally {
-      setIsLoadingRec(false);
-    }
-  }, []);
-
   // Fetch Quiz analytics
   const fetchQuizData = useCallback(async () => {
     setIsLoadingQuiz(true);
@@ -183,8 +164,6 @@ export default function AdminDashboard() {
 
     if (activeTab === 'overview') {
       fetchOverviewData();
-    } else if (activeTab === 'recommendations') {
-      fetchRecData();
     } else if (activeTab === 'quiz') {
       fetchQuizData();
     } else if (activeTab === 'storage') {
@@ -196,7 +175,6 @@ export default function AdminDashboard() {
     activeTab,
     user,
     fetchOverviewData,
-    fetchRecData,
     fetchQuizData,
     fetchStorageData,
     fetchErrorsData,
@@ -258,7 +236,6 @@ export default function AdminDashboard() {
           <button
             onClick={() => {
               if (activeTab === 'overview') fetchOverviewData();
-              else if (activeTab === 'recommendations') fetchRecData();
               else if (activeTab === 'quiz') fetchQuizData();
               else if (activeTab === 'storage') fetchStorageData();
               else if (activeTab === 'errors') fetchErrorsData();
@@ -365,65 +342,7 @@ export default function AdminDashboard() {
             {activeTab === 'graphrag' && <GraphRAGTab />}
 
             {/* RECOMMENDATIONS TAB */}
-            {activeTab === 'recommendations' && (
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Statistik Pencarian Herbal</h3>
-                {isLoadingRec ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-6 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : recError ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Data belum tersedia atau service sedang offline.
-                  </p>
-                ) : recAnalytics ? (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Total Sesi Analisis</p>
-                        <p className="text-xl font-bold mt-1">{recAnalytics.total_sessions}</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">No-Result Rate</p>
-                        <p className="text-xl font-bold mt-1">{(recAnalytics.no_result_rate * 100).toFixed(1)}%</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Gagal (Exception)</p>
-                        <p className="text-xl font-bold mt-1">{(recAnalytics.failure_rate * 100).toFixed(1)}%</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Keluhan Paling Sering</h4>
-                        <div className="space-y-2">
-                          {recAnalytics.top_complaints?.map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-xs py-1 border-b border-gray-100 dark:border-gray-800">
-                              <span className="text-gray-700 dark:text-gray-300 font-medium">{item.complaint}</span>
-                              <span className="text-gray-500">{item.count} kali</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Herbal Paling Sering Direkomendasikan</h4>
-                        <div className="space-y-2">
-                          {recAnalytics.top_herbs?.map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-xs py-1 border-b border-gray-100 dark:border-gray-800">
-                              <span className="text-gray-700 dark:text-gray-300 font-medium">{item.herb}</span>
-                              <span className="text-gray-500">{item.count} kali</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">Belum ada statistik rekomendasi.</p>
-                )}
-              </div>
-            )}
+            {activeTab === 'recommendations' && <RecommendationTab />}
 
             {/* QUIZ TAB */}
             {activeTab === 'quiz' && (
