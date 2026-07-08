@@ -28,7 +28,6 @@ import { Spinner, Skeleton } from '@/components/ui/Spinner';
 import type { AdminAnalytics } from '@/types';
 import type {
   SystemHealthResponse,
-  QuizAnalyticsResponse,
   StorageStatsResponse,
   ErrorLogEntry,
 } from '@/types/admin';
@@ -37,6 +36,7 @@ import { UsersTab } from './users/UsersTab';
 import { AIUsageTab } from './ai-usage/AIUsageTab';
 import { GraphRAGTab } from './graphrag/GraphRAGTab';
 import RecommendationTab from './recommendations/RecommendationTab';
+import QuizTab from './quiz/QuizTab';
 
 type TabId =
   | 'overview'
@@ -58,11 +58,6 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [health, setHealth] = useState<SystemHealthResponse | null>(null);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
-
-  // Quiz states
-  const [quizAnalytics, setQuizAnalytics] = useState<QuizAnalyticsResponse | null>(null);
-  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
-  const [quizError, setQuizError] = useState<string | null>(null);
 
   // Storage states
   const [storageStats, setStorageStats] = useState<StorageStatsResponse | null>(null);
@@ -116,20 +111,6 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Fetch Quiz analytics
-  const fetchQuizData = useCallback(async () => {
-    setIsLoadingQuiz(true);
-    setQuizError(null);
-    try {
-      const data = await adminApi.getQuizAnalytics();
-      setQuizAnalytics(data);
-    } catch (err: any) {
-      setQuizError(err?.response?.data?.detail || err.message || 'Endpoint not implemented');
-    } finally {
-      setIsLoadingQuiz(false);
-    }
-  }, []);
-
   // Fetch Storage stats
   const fetchStorageData = useCallback(async () => {
     setIsLoadingStorage(true);
@@ -164,8 +145,6 @@ export default function AdminDashboard() {
 
     if (activeTab === 'overview') {
       fetchOverviewData();
-    } else if (activeTab === 'quiz') {
-      fetchQuizData();
     } else if (activeTab === 'storage') {
       fetchStorageData();
     } else if (activeTab === 'errors') {
@@ -175,7 +154,6 @@ export default function AdminDashboard() {
     activeTab,
     user,
     fetchOverviewData,
-    fetchQuizData,
     fetchStorageData,
     fetchErrorsData,
   ]);
@@ -236,7 +214,6 @@ export default function AdminDashboard() {
           <button
             onClick={() => {
               if (activeTab === 'overview') fetchOverviewData();
-              else if (activeTab === 'quiz') fetchQuizData();
               else if (activeTab === 'storage') fetchStorageData();
               else if (activeTab === 'errors') fetchErrorsData();
             }}
@@ -345,56 +322,7 @@ export default function AdminDashboard() {
             {activeTab === 'recommendations' && <RecommendationTab />}
 
             {/* QUIZ TAB */}
-            {activeTab === 'quiz' && (
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Statistik Kuis Kimia</h3>
-                {isLoadingQuiz ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-6 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : quizError ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                    Data belum tersedia atau service sedang offline.
-                  </p>
-                ) : quizAnalytics ? (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Total Kuis Selesai</p>
-                        <p className="text-xl font-bold mt-1">{quizAnalytics.total_sessions}</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Completion Rate</p>
-                        <p className="text-xl font-bold mt-1">{(quizAnalytics.completion_rate * 100).toFixed(1)}%</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Rata-rata Nilai</p>
-                        <p className="text-xl font-bold mt-1">{quizAnalytics.avg_score.toFixed(1)}%</p>
-                      </div>
-                      <div className="p-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/20">
-                        <p className="text-xs text-gray-400">Siswa Harian Aktif</p>
-                        <p className="text-xl font-bold mt-1">{quizAnalytics.daily_active_learners}</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Materi Terlemah (Rata-rata Nilai Terendah)</h4>
-                      <div className="space-y-2">
-                        {quizAnalytics.top_weak_topics?.map((item, idx) => (
-                          <div key={idx} className="flex justify-between text-xs py-1.5 border-b border-gray-100 dark:border-gray-800">
-                            <span className="text-gray-700 dark:text-gray-300 font-medium">{item.topic}</span>
-                            <span className="text-red-500 font-semibold">{item.avg_score.toFixed(1)}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">Belum ada statistik kuis.</p>
-                )}
-              </div>
-            )}
+            {activeTab === 'quiz' && <QuizTab />}
 
             {/* STORAGE TAB */}
             {activeTab === 'storage' && (

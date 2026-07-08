@@ -302,3 +302,62 @@ export interface RecommendationChartsData {
   success_vs_failed: { success: number; failed: number; no_result: number };
   hourly_heatmap: Array<{ hour: number; count: number }>;
 }
+
+// --- Admin Quiz ---
+export interface QuizModule {
+  id: string;
+  title: string;
+  description: string;
+  slug: string;
+  sort_order: number;
+  is_active: boolean;
+  quiz_subjects?: { id: string; title: string; slug: string };
+}
+
+export interface QuizLevel {
+  id: string;
+  module_id: string;
+  title: string;
+  level_number: number;
+  passing_score: number;
+  xp_reward: number;
+  quiz_modules?: { id: string; title: string };
+}
+
+export interface QuizQuestionOption {
+  id: string;
+  option_key: string;
+  label: string;
+  is_correct: boolean;
+  sort_order: number;
+}
+
+export interface QuizQuestion {
+  id: string;
+  level_id: string;
+  prompt: string;
+  question_type: string;
+  explanation: string;
+  correct_answer: unknown;
+  difficulty: number;
+  is_active: boolean;
+  quiz_question_options?: QuizQuestionOption[];
+}
+
+export interface QuizDashboardStats {
+  total_modules: number;
+  total_levels: number;
+  total_questions: number;
+  total_attempts: number;
+  completed_attempts: number;
+  completion_rate: number;
+  avg_score: number;
+  highest_score: number;
+  lowest_score: number;
+  active_users_today: number;
+  published_modules: number;
+  draft_modules: number;
+  by_module: Array<{ module: string; count: number }>;
+  by_difficulty: Array<{ difficulty: number; count: number }>;
+  daily_attempts: Array<{ date: string; count: number }>;
+}

@@ -21,6 +21,10 @@ import type {
   RecommendationSession,
   RecommendationDashboardStats,
   RecommendationChartsData,
+  QuizModule,
+  QuizLevel,
+  QuizQuestion,
+  QuizDashboardStats,
 } from '@/types/admin';
 
 // ── Types for CRUD ──
@@ -307,5 +311,74 @@ export const adminApi = {
   exportRecommendationsCSV: async (): Promise<Blob> => {
     const response = await apiClient.get('/api/admin/recommendations/export/csv', { responseType: 'blob' });
     return response.data;
+  },
+
+  // --- Admin Quiz ---
+
+  getQuizDashboard: async (): Promise<QuizDashboardStats> => {
+    const response = await apiClient.get<QuizDashboardStats>('/api/admin/quiz/dashboard', { silent: true });
+    return response.data;
+  },
+
+  getQuizModules: async (params?: { limit?: number; offset?: number; search?: string }): Promise<{ modules: QuizModule[]; total: number; limit: number; offset: number }> => {
+    const response = await apiClient.get('/api/admin/quiz/modules', { params, silent: true });
+    return response.data;
+  },
+
+  createQuizModule: async (data: { title: string; description?: string; subject_id?: string }): Promise<QuizModule> => {
+    const response = await apiClient.post<QuizModule>('/api/admin/quiz/modules', data);
+    return response.data;
+  },
+
+  updateQuizModule: async (moduleId: string, data: Partial<QuizModule>): Promise<QuizModule> => {
+    const response = await apiClient.put<QuizModule>(`/api/admin/quiz/modules/${moduleId}`, data);
+    return response.data;
+  },
+
+  deleteQuizModule: async (moduleId: string): Promise<void> => {
+    await apiClient.delete(`/api/admin/quiz/modules/${moduleId}`);
+  },
+
+  getQuizLevels: async (params?: { module_id?: string; limit?: number; offset?: number }): Promise<{ levels: QuizLevel[]; total: number; limit: number; offset: number }> => {
+    const response = await apiClient.get('/api/admin/quiz/levels', { params, silent: true });
+    return response.data;
+  },
+
+  createQuizLevel: async (data: { module_id: string; title: string; level_number?: number; passing_score?: number; xp_reward?: number }): Promise<QuizLevel> => {
+    const response = await apiClient.post<QuizLevel>('/api/admin/quiz/levels', data);
+    return response.data;
+  },
+
+  updateQuizLevel: async (levelId: string, data: Partial<QuizLevel>): Promise<QuizLevel> => {
+    const response = await apiClient.put<QuizLevel>(`/api/admin/quiz/levels/${levelId}`, data);
+    return response.data;
+  },
+
+  deleteQuizLevel: async (levelId: string): Promise<void> => {
+    await apiClient.delete(`/api/admin/quiz/levels/${levelId}`);
+  },
+
+  getQuizQuestions: async (params?: { level_id?: string; limit?: number; offset?: number; search?: string }): Promise<{ questions: QuizQuestion[]; total: number; limit: number; offset: number }> => {
+    const response = await apiClient.get('/api/admin/quiz/questions', { params, silent: true });
+    return response.data;
+  },
+
+  getQuizQuestion: async (questionId: string): Promise<QuizQuestion> => {
+    const response = await apiClient.get<QuizQuestion>(`/api/admin/quiz/questions/${questionId}`, { silent: true });
+    return response.data;
+  },
+
+  createQuizQuestion: async (data: { level_id: string; prompt: string; question_type?: string; explanation?: string; difficulty?: number; options?: Array<{ option_key: string; label: string; is_correct: boolean }> }): Promise<QuizQuestion> => {
+    const response = await apiClient.post<QuizQuestion>('/api/admin/quiz/questions', data);
+    return response.data;
+  },
+
+  updateQuizQuestion: async (questionId: string, data: Partial<QuizQuestion>): Promise<QuizQuestion> => {
+    const response = await apiClient.put<QuizQuestion>(`/api/admin/quiz/questions/${questionId}`, data);
+    return response.data;
+  },
+
+  deleteQuizQuestion: async (questionId: string): Promise<void> => {
+    await apiClient.delete(`/api/admin/quiz/questions/${questionId}`);
   },
 };
