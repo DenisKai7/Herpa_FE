@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, RotateCcw, Eye } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Eye, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Spinner';
 import { StatusBadge, RoleBadge } from '@/components/ui/Badge';
@@ -25,6 +25,9 @@ export function UsersTab() {
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -121,6 +124,7 @@ export function UsersTab() {
                     <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="sm" icon={<Eye className="h-3.5 w-3.5" />} onClick={() => setDetailUser(u)} />
                       <Button variant="secondary" size="sm" onClick={() => setEditUser(u)}>Edit</Button>
+                      <Button variant="ghost" size="sm" icon={<KeyRound className="h-3.5 w-3.5" />} onClick={() => { setResetTarget(u); setNewPassword(''); }} title="Reset Password" />
                       {u.account_status === 'deleted' ? (
                         <Button variant="secondary" size="sm" icon={<RotateCcw className="h-3.5 w-3.5" />} onClick={() => restoreUser(u.id)} isLoading={actionLoading}>
                           Pulihkan
@@ -176,6 +180,43 @@ export function UsersTab() {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Reset Password Modal */}
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setResetTarget(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4">Reset Password</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Reset password untuk <span className="font-semibold text-gray-700 dark:text-gray-300">{resetTarget.full_name ?? resetTarget.email}</span>
+            </p>
+            <input
+              type="password"
+              placeholder="Password baru (min. 8 karakter)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl focus:outline-none focus:border-purple-500 text-gray-900 dark:text-gray-100 mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setResetTarget(null)}>Batal</Button>
+              <Button variant="primary" size="sm" isLoading={resetLoading} disabled={newPassword.length < 8} onClick={async () => {
+                setResetLoading(true);
+                try {
+                  const { adminApi } = await import('@/lib/api/admin');
+                  await adminApi.resetPassword(resetTarget.id, newPassword);
+                  const { default: toast } = await import('react-hot-toast');
+                  toast.success('Password berhasil direset.');
+                  setResetTarget(null);
+                } catch {
+                  const { default: toast } = await import('react-hot-toast');
+                  toast.error('Gagal reset password.');
+                } finally {
+                  setResetLoading(false);
+                }
+              }}>Reset</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

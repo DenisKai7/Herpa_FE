@@ -98,6 +98,10 @@ export const adminApi = {
     await apiClient.post(`/api/admin/users/${userId}/restore`);
   },
 
+  resetPassword: async (userId: string, newPassword: string): Promise<void> => {
+    await apiClient.post(`/api/admin/users/${userId}/reset-password`, { new_password: newPassword });
+  },
+
   getUserDetail: async (userId: string): Promise<AdminUser> => {
     const response = await apiClient.get<AdminUser>(`/api/v1/admin/users/${userId}`, { silent: true });
     return response.data;
